@@ -9,6 +9,7 @@
 	</parent>
 	<artifactId>statnlp-activelearning</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
+	<name>BYU NLP Active Learning Library</name>
 	<build>
 		<sourceDirectory>src</sourceDirectory>
 		<testSourceDirectory>test</testSourceDirectory>
