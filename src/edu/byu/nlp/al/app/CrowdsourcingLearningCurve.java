@@ -256,7 +256,7 @@ public class CrowdsourcingLearningCurve {
   private static int maxAnnotations = Integer.MAX_VALUE;
   
   @Option(help = "Accuracy levels of annotators. The first one assumed arbiter for ab1 and ab2")
-  private static AnnotatorAccuracySetting accuracyLevel = AnnotatorAccuracySetting.NOISY;
+  private static AnnotatorAccuracySetting accuracyLevel = AnnotatorAccuracySetting.HIGH;
   
   private static final ImmutableSet<Long> arbiters = ImmutableSet.of(0L); // the arbitrator is the first annotator by convention
 
