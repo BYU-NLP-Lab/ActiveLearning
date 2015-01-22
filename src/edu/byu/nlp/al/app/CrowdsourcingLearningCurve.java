@@ -411,7 +411,7 @@ public class CrowdsourcingLearningCurve {
     stopwatchData.stop();
     
     // cross-validation sweep unannotated-document-weight (optional)
-    if (validationPercent>0){
+    if (validationPercent>0 && !hyperparamTraining.contains("NONE")){
     	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
     	// pass training data in as extra (unannotated/unlabeled) data
     	Dataset extraUnlabeledData = Datasets.hideAllLabelsButNPerClass(trainingData, 0, null); // make sure "extra" data is unlabeled
@@ -479,7 +479,7 @@ public class CrowdsourcingLearningCurve {
 		MultivariateOptimizer optimizer;
 		switch (optMethod){
 		case BOBYQA:
-			int numberOfInterpolationPoints = dims + 2; 
+			int numberOfInterpolationPoints = dims + 2; // recommended by docs
 			optimizer = new BOBYQAOptimizer(numberOfInterpolationPoints); 
 			break;
 		case GRID:
@@ -499,6 +499,7 @@ public class CrowdsourcingLearningCurve {
 		}
 		    
 		final double[] bestPoint = new double[dims+1]; // track best point and value (in case the optimization crashes)
+		System.arraycopy(startPoint, 0, bestPoint, 0, dims); // assume the start point if nothing else is found (immediate crash)
 		PointValuePair optimum;
 		try{
 			optimum = optimizer.optimize(
