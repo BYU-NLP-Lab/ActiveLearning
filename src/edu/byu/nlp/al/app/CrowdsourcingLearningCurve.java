@@ -849,8 +849,8 @@ public class CrowdsourcingLearningCurve {
     logAccuracy("top3", acc3Results);
 
     // hyperparam optimization is based on this result
-//    return accResults.getLabeledAccuracy().getAccuracy(); // labeled accuracy (of interest but very jumpy)
-    return jointResults; // smooth (but not necessarily what we are most interested in)
+    return accResults.getLabeledAccuracy().getAccuracy(); // labeled accuracy (of interest but very noisy/jumpy)
+//    return jointResults; // smooth (but not necessarily what we are most interested in)
   }
 
   private static void logAccuracy(String prefix, OverallAccuracy acc){
