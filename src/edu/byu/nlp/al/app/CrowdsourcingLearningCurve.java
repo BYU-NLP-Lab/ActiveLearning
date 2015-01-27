@@ -415,7 +415,7 @@ public class CrowdsourcingLearningCurve {
     	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
     	// pass training data in as extra (unannotated/unlabeled) data
     	Dataset extraUnlabeledData = Datasets.hideAllLabelsButNPerClass(trainingData, 0, null); // make sure "extra" data is unlabeled
-    	ModelTraining.doOperations(hyperparamTraining, new ItemResponseHyperparameterOptimizer(mChains, mChains, validationData, extraUnlabeledData, annotations, validationEvalPoint));
+    	ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(mChains, mChains, validationData, extraUnlabeledData, annotations, validationEvalPoint));
     }
 
     
@@ -434,14 +434,14 @@ public class CrowdsourcingLearningCurve {
   }
 
   
-  private static class ItemResponseHyperparameterOptimizer implements SupportsTrainingOperations{
+  private static class CrowdsourcingHyperparameterOptimizer implements SupportsTrainingOperations{
 	private int[][] yChains;
 	private int[][] mChains;
 	private Dataset validationData;
 	private Dataset extraUnlabeledData;
 	private EmpiricalAnnotations<SparseFeatureVector, Integer> annotations;
 	private int validationEvalPoint;
-	public ItemResponseHyperparameterOptimizer(
+	public CrowdsourcingHyperparameterOptimizer(
 		  int[][] yChains, int[][] mChains, 
 	      Dataset validationData,
 	      Dataset extraData,
@@ -461,24 +461,26 @@ public class CrowdsourcingLearningCurve {
 	// args are in the form maximize-[varname]-[type]-[maxiterations]
 	@Override
 	public void maximize(String variableName, String[] args) {
-		// see advice here http://commons.apache.org/proper/commons-math/apidocs/org/apache/commons/math3/optim/nonlinear/scalar/noderiv/BOBYQAOptimizer.html
-		Preconditions.checkArgument(variableName.toLowerCase().equals("all"));
+	  
+	  // Optimize ItemResp parameters (theta, gamma)
+//		if (variableName.toLowerCase().equals("itemresp")){
 		
 		// pre-calculation
 		int maxEvaluations = 50;
 		if (args.length>=2){
 			maxEvaluations = Integer.parseInt(args[1]);
 		}
-	    double zero = 0.01;
-	    double one = 1.-zero;
-	    double[] startPoint = {CrowdsourcingLearningCurve.bTheta, CrowdsourcingLearningCurve.bGamma, CrowdsourcingLearningCurve.cGamma};
-	    final int dims = startPoint.length; 
-	    double[][] boundaries = {{zero,zero,zero},{2,one,20}};
-	    HyperparamOpt optMethod = (args.length==0)? HyperparamOpt.BOBYQA: HyperparamOpt.valueOf(args[0]);
+    double zero = 0.01;
+    double one = 1.-zero;
+    double[] startPoint = {CrowdsourcingLearningCurve.bTheta, CrowdsourcingLearningCurve.bGamma, CrowdsourcingLearningCurve.cGamma};
+    final int dims = startPoint.length; 
+    double[][] boundaries = {{zero,zero,zero},{2,one,20}};
+    HyperparamOpt optMethod = (args.length==0)? HyperparamOpt.BOBYQA: HyperparamOpt.valueOf(args[0]);
 	    
 		MultivariateOptimizer optimizer;
 		switch (optMethod){
 		case BOBYQA:
+	    // see advice here http://commons.apache.org/proper/commons-math/apidocs/org/apache/commons/math3/optim/nonlinear/scalar/noderiv/BOBYQAOptimizer.html
 			int numberOfInterpolationPoints = dims + 2; // recommended by docs
 			optimizer = new BOBYQAOptimizer(numberOfInterpolationPoints); 
 			break;
