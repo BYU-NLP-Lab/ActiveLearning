@@ -16,9 +16,10 @@
 package edu.byu.nlp.al.app;
 
 import java.io.FileNotFoundException;
-import java.util.logging.Logger;
 
 import org.apache.commons.vfs2.FileSystemException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import edu.byu.nlp.util.jargparser.annotations.Option;
 
@@ -28,7 +29,7 @@ import edu.byu.nlp.util.jargparser.annotations.Option;
  */
 public class CrowdsourcingSim {
 
-  private static final Logger logger = Logger.getLogger(CrowdsourcingSim.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(CrowdsourcingSim.class);
 
   @Option(help = "Accuracy levels of annotators. The first one assumed arbiter for ab1 and ab2")
   private static final double[] accuracies = new double[] { 0.90, 0.80, 0.70 };

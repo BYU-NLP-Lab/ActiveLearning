@@ -18,7 +18,9 @@ package edu.byu.nlp.al;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
@@ -43,7 +45,7 @@ import edu.byu.nlp.util.Heap.HeapIterator;
  */
 public class SharedQueueInstanceManager<D, L> extends AbstractInstanceManager<D, L> implements InstanceManager<D, L> {
 
-  private static final Logger logger = Logger.getLogger(SharedQueueInstanceManager.class.getName());
+	  private static final Logger logger = LoggerFactory.getLogger(SharedQueueInstanceManager.class);
     
 	private final BlockingSortedListHeap<ScoredFlatInstance<D, L>> q;
 	private final Iterable<FlatInstance<D, L>> allInstances;

@@ -21,13 +21,15 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Logger;
 
 import org.apache.commons.math3.analysis.MultivariateFunction;
 import org.apache.commons.math3.optim.PointValuePair;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.vfs2.FileSystemException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
@@ -126,7 +128,10 @@ import edu.byu.nlp.util.jargparser.annotations.Option;
  * 
  */
 public class CrowdsourcingLearningCurve {
-  private static final Logger logger = Logger.getLogger(CrowdsourcingLearningCurve.class.getName());
+
+  // using slf4j logging + MDC for context-sensitive prefixes (to indicate when we are doing hyper
+  // parameter optimization vs other)
+  private static Logger logger = LoggerFactory.getLogger(CrowdsourcingLearningCurve.class);
 
   @Option(help = "base directory of the documents") 
   private static String basedir = "./20_newsgroups";
@@ -406,10 +411,12 @@ public class CrowdsourcingLearningCurve {
     
     // cross-validation sweep unannotated-document-weight (optional)
     if (validationPercent>0){
+        MDC.put("context", "hyperopt");
     	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
     	// pass training data in as extra (unannotated/unlabeled) data
     	Dataset extraUnlabeledData = Datasets.hideAllLabelsButNPerClass(trainingData, 0, null); // make sure "extra" data is unlabeled
     	ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(mChains, mChains, validationData, extraUnlabeledData, annotations, validationEvalPoint));
+        MDC.remove("context");
     }
 
     // final go
@@ -512,10 +519,11 @@ public class CrowdsourcingLearningCurve {
 			          return val;
 		        }
 		       });
-	    
-	    logger.info("final ItemResp hyperparameter values: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
-	    // return values
-	    adoptParams(parameterNames, optimum.getPointRef());
+
+		// adopt the best values
+		adoptParams(parameterNames, optimum.getPointRef());
+	    logger.info("final hyperparameter values: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
+	    // export the best values to static variables
 	    exportParams(parameterNames); 
 	}
 	private void preparePointsAndBoundaries(String parameterNames){
