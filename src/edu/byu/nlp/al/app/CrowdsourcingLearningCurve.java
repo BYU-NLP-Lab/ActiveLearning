@@ -413,11 +413,12 @@ public class CrowdsourcingLearningCurve {
     }
 
     // final go
+    boolean returnLabeledAccuracy = true;
     trainEval(debugOut, annotationsOut, tabularPredictionsOut, resultsOut,
         serializeOut, yChains, mChains, dataRnd, algRnd, stopwatchData, 
         trainingData, false, validationData, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
         bTheta, bMu, bPhi, bGamma, cGamma, 
-        lambda, evalPoint, labelingStrategy, training);
+        lambda, evalPoint, labelingStrategy, training, returnLabeledAccuracy);
     
     debugOut.close();
     annotationsOut.close();
@@ -476,8 +477,10 @@ public class CrowdsourcingLearningCurve {
 		int maxEvaluations = (args.length>=2)? Integer.parseInt(args[1]): 50;
 		// args[2]: labeling strategy (guiding hyperparam search) 
 		final LabelingStrategy hyperLabelingStrategy = (args.length>=3)? LabelingStrategy.valueOf(args[2]): labelingStrategy;
-		// args[3:]: training strategy (guiding hyperparam search) 
-		final String hyperTraining = (args.length>=4)? Strings.join(Arrays.subsequence(args,3),"-"): training;
+		// args[3]: evaluation criterion (either 'acc' for supervised labeled accuracy or else 'joint' for unsupervised log joint)
+		final boolean returnLabeledAccuracy = (args.length>=4)? args[3].toLowerCase().equals("acc"): true;
+		// args[4:]: training strategy (guiding hyperparam search) 
+		final String hyperTraining = (args.length>=5)? Strings.join(Arrays.subsequence(args,4),"-"): training;
 		
 		//////////////////////////////////////
 	    // Optimize ItemResp hyperparams (theta, gamma)
@@ -487,8 +490,10 @@ public class CrowdsourcingLearningCurve {
 				grid,
 				// objective function
 				new MultivariateFunction(){
+					private int iterations = 0;
 			        @Override
 			        public double value(double[] point) {
+			          iterations++;
 			    	  adoptParams(parameterNames, point); // writes values onto bTheta, bPhi, etc
 			          
 			          // ensure results are consistent by using same seed
@@ -502,13 +507,13 @@ public class CrowdsourcingLearningCurve {
 			              Datasets.emptyDataset(validationData.getInfo()), // no test data 
 			              annotations, 
 			              bTheta, CrowdsourcingLearningCurve.bMu, bPhi, bGamma, cGamma, CrowdsourcingLearningCurve.lambda, validationEvalPoint,
-			              hyperLabelingStrategy, hyperTraining); // use indicated training regime
-			          logger.info("ItemResp hyperparam search iteration {bTheta="+bTheta+" bGamma="+bGamma+" cGamma="+cGamma+"}="+val);
+			              hyperLabelingStrategy, hyperTraining, returnLabeledAccuracy); // use indicated training regime
+			          logger.info("ItemResp hyperparam search iteration "+iterations+" {bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma+"}="+val);
 			          return val;
 		        }
 		       });
 	    
-	    logger.info("final ItemResp hyperparameter values: bTheta="+bTheta+" bGamma="+bGamma+" cGamma="+cGamma);
+	    logger.info("final ItemResp hyperparameter values: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
 	    // return values
 	    adoptParams(parameterNames, optimum.getPointRef());
 	    exportParams(parameterNames); 
@@ -576,6 +581,10 @@ public class CrowdsourcingLearningCurve {
   }
 
 
+  /**
+   * @param returnLabeledAccuracy if false, returns log joint
+   * @return
+   */
   private static double trainEval(PrintWriter debugOut,
       PrintWriter annotationsOut, PrintWriter tabularPredictionsOut,
       PrintWriter resultsOut, PrintWriter serializeOut, int[][] yChains,
@@ -583,7 +592,8 @@ public class CrowdsourcingLearningCurve {
       Stopwatch stopwatchData, Dataset trainingData, boolean onlyAnnotateLabeledData, Dataset extraUnlabeledData,  
       Dataset testData, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations,
       double bTheta, double bMu, double bPhi, double bGamma, double cGamma, 
-      String lambda, int evalPoint, LabelingStrategy labelingStrategy, String training) {
+      String lambda, int evalPoint, LabelingStrategy labelingStrategy, String training, 
+      boolean returnLabeledAccuracy) {
     
     /////////////////////////////////////////////////////////////////////
     // Prepare data. 
@@ -870,8 +880,12 @@ public class CrowdsourcingLearningCurve {
     logAccuracy("top3", acc3Results);
 
     // hyperparam optimization is based on this result
-    return accResults.getLabeledAccuracy().getAccuracy(); // labeled accuracy (of interest but very noisy/jumpy)
-//    return jointResults; // smooth (but not necessarily what we are most interested in)
+    if (returnLabeledAccuracy){
+    	return accResults.getLabeledAccuracy().getAccuracy(); // labeled accuracy (of interest but very noisy/jumpy)
+    }
+    else{
+    	return jointResults; // smooth (but not necessarily what we are most interested in)
+    }
   }
 
   private static void logAccuracy(String prefix, OverallAccuracy acc){
