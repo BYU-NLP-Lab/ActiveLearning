@@ -17,21 +17,14 @@ package edu.byu.nlp.al.app;
 
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import org.apache.commons.math3.analysis.MultivariateFunction;
-import org.apache.commons.math3.optim.InitialGuess;
-import org.apache.commons.math3.optim.MaxEval;
 import org.apache.commons.math3.optim.PointValuePair;
-import org.apache.commons.math3.optim.SimpleBounds;
-import org.apache.commons.math3.optim.nonlinear.scalar.GoalType;
-import org.apache.commons.math3.optim.nonlinear.scalar.MultivariateOptimizer;
-import org.apache.commons.math3.optim.nonlinear.scalar.ObjectiveFunction;
-import org.apache.commons.math3.optim.nonlinear.scalar.noderiv.BOBYQAOptimizer;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.vfs2.FileSystemException;
@@ -113,12 +106,15 @@ import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
 import edu.byu.nlp.dataset.Datasets;
 import edu.byu.nlp.io.Files2;
-import edu.byu.nlp.math.optimize.GridOptimizer;
+import edu.byu.nlp.math.optimize.MultivariateOptimizers;
+import edu.byu.nlp.math.optimize.MultivariateOptimizers.OptimizationMethod;
+import edu.byu.nlp.util.Arrays;
 import edu.byu.nlp.util.DoubleArrays;
 import edu.byu.nlp.util.Indexer;
 import edu.byu.nlp.util.IntArrays;
 import edu.byu.nlp.util.Matrices;
 import edu.byu.nlp.util.Pair;
+import edu.byu.nlp.util.Strings;
 import edu.byu.nlp.util.TimedEvent;
 import edu.byu.nlp.util.jargparser.ArgumentParser;
 import edu.byu.nlp.util.jargparser.ArgumentValues;
@@ -135,8 +131,6 @@ public class CrowdsourcingLearningCurve {
   @Option(help = "base directory of the documents") 
   private static String basedir = "./20_newsgroups";
 
-  private enum HyperparamOpt{GRID,BOBYQA,NONE}
-  
   @Option(help="what kind of hyperparameter optimization to do. In the form maximize-[varname]-[type]-[maxiterations]. type in HyperparamOpt. Default is NONE.")
   private static String hyperparamTraining = "maximize-all-NONE";
   
@@ -411,20 +405,19 @@ public class CrowdsourcingLearningCurve {
     stopwatchData.stop();
     
     // cross-validation sweep unannotated-document-weight (optional)
-    if (validationPercent>0 && !hyperparamTraining.contains("NONE")){
+    if (validationPercent>0){
     	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
     	// pass training data in as extra (unannotated/unlabeled) data
     	Dataset extraUnlabeledData = Datasets.hideAllLabelsButNPerClass(trainingData, 0, null); // make sure "extra" data is unlabeled
     	ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(mChains, mChains, validationData, extraUnlabeledData, annotations, validationEvalPoint));
     }
 
-    
     // final go
     trainEval(debugOut, annotationsOut, tabularPredictionsOut, resultsOut,
         serializeOut, yChains, mChains, dataRnd, algRnd, stopwatchData, 
         trainingData, false, validationData, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
         bTheta, bMu, bPhi, bGamma, cGamma, 
-        lambda, evalPoint);
+        lambda, evalPoint, labelingStrategy, training);
     
     debugOut.close();
     annotationsOut.close();
@@ -441,6 +434,14 @@ public class CrowdsourcingLearningCurve {
 	private Dataset extraUnlabeledData;
 	private EmpiricalAnnotations<SparseFeatureVector, Integer> annotations;
 	private int validationEvalPoint;
+	private Set<Double> bThetaGrid = Sets.newHashSet(0.01, 0.1, 0.5, 1.0);
+	private Set<Double> bPhiGrid = Sets.newHashSet(0.01, 0.1, 0.25, 0.5, 0.75, 1.0);
+	private Set<Double> bGammaGrid = Sets.newHashSet(0.1, 0.5, 0.9);
+	private Set<Double> cGammaGrid = Sets.newHashSet(.1, 1.0, 10.0, 50.0);
+	private double bTheta,bPhi,bGamma,cGamma; // determined at run time
+	private List<Set<Double>> grid = null; // determined at run time
+	private double[] startPoint = null; // determined at run time
+	private double[][] boundaries = null; // determined at run time
 	public CrowdsourcingHyperparameterOptimizer(
 		  int[][] yChains, int[][] mChains, 
 	      Dataset validationData,
@@ -458,101 +459,119 @@ public class CrowdsourcingLearningCurve {
 	public void sample(String variableName, String[] args) {
 		throw new UnsupportedOperationException("not implemented");
 	}
-	// args are in the form maximize-[varname]-[type]-[maxiterations]
+	/**
+	 * args are in the form maximize-[params]-[maxiterations]-[training]
+	 * where [params] has a comma-separated list of parameter names to be updated
+	 * and [training] has the same form as what is given to the --training param. 
+	 * (the global --training args are used as default values).
+	 */
 	@Override
-	public void maximize(String variableName, String[] args) {
-	  
-	  // Optimize ItemResp parameters (theta, gamma)
-//		if (variableName.toLowerCase().equals("itemresp")){
+	public void maximize(final String parameterNames, final String[] args) {
+		// parameterNames: comma-separated list of param names to be updated
+		importParams(parameterNames);
+		preparePointsAndBoundaries(parameterNames);
+		// args[0]: hyperparam optimization strategy
+		OptimizationMethod optMethod = (args.length==0)? OptimizationMethod.BOBYQA: OptimizationMethod.valueOf(args[0]);
+		// args[1]: how many hyperparam iterations?
+		int maxEvaluations = (args.length>=2)? Integer.parseInt(args[1]): 50;
+		// args[2]: labeling strategy (guiding hyperparam search) 
+		final LabelingStrategy hyperLabelingStrategy = (args.length>=3)? LabelingStrategy.valueOf(args[2]): labelingStrategy;
+		// args[3:]: training strategy (guiding hyperparam search) 
+		final String hyperTraining = (args.length>=4)? Strings.join(Arrays.subsequence(args,3),"-"): training;
 		
-		// pre-calculation
-		int maxEvaluations = 50;
-		if (args.length>=2){
-			maxEvaluations = Integer.parseInt(args[1]);
-		}
-    double zero = 0.01;
-    double one = 1.-zero;
-    double[] startPoint = {CrowdsourcingLearningCurve.bTheta, CrowdsourcingLearningCurve.bGamma, CrowdsourcingLearningCurve.cGamma};
-    final int dims = startPoint.length; 
-    double[][] boundaries = {{zero,zero,zero},{2,one,20}};
-    HyperparamOpt optMethod = (args.length==0)? HyperparamOpt.BOBYQA: HyperparamOpt.valueOf(args[0]);
+		//////////////////////////////////////
+	    // Optimize ItemResp hyperparams (theta, gamma)
+		//////////////////////////////////////
+		PointValuePair optimum = MultivariateOptimizers.optimize(optMethod, maxEvaluations, startPoint, boundaries, 
+	    		// grid
+				grid,
+				// objective function
+				new MultivariateFunction(){
+			        @Override
+			        public double value(double[] point) {
+			    	  adoptParams(parameterNames, point); // writes values onto bTheta, bPhi, etc
+			          
+			          // ensure results are consistent by using same seed
+			          RandomGenerator algRnd = new MersenneTwister(algorithmSeed);
+			          RandomGenerator dataRnd = new MersenneTwister(dataSeed);
+			          PrintWriter nullPipe = new PrintWriter(ByteStreams.nullOutputStream());
+			          boolean onlyAnnotateLabeledData = true;
+			          double val = trainEval(nullPipe, nullPipe, nullPipe, nullPipe, nullPipe, 
+			              yChains, mChains, dataRnd, algRnd, null, // null stopwatch
+			              validationData, onlyAnnotateLabeledData, extraUnlabeledData, // train on validation (also include unannotated/unlabeled training data) 
+			              Datasets.emptyDataset(validationData.getInfo()), // no test data 
+			              annotations, 
+			              bTheta, CrowdsourcingLearningCurve.bMu, bPhi, bGamma, cGamma, CrowdsourcingLearningCurve.lambda, validationEvalPoint,
+			              hyperLabelingStrategy, hyperTraining); // use indicated training regime
+			          logger.info("ItemResp hyperparam search iteration {bTheta="+bTheta+" bGamma="+bGamma+" cGamma="+cGamma+"}="+val);
+			          return val;
+		        }
+		       });
 	    
-		MultivariateOptimizer optimizer;
-		switch (optMethod){
-		case BOBYQA:
-	    // see advice here http://commons.apache.org/proper/commons-math/apidocs/org/apache/commons/math3/optim/nonlinear/scalar/noderiv/BOBYQAOptimizer.html
-			int numberOfInterpolationPoints = dims + 2; // recommended by docs
-			optimizer = new BOBYQAOptimizer(numberOfInterpolationPoints); 
-			break;
-		case GRID:
-			optimizer = new GridOptimizer(
-					Sets.newHashSet(zero, 0.1, 0.25, 0.5), // bTheta 
-					Sets.newHashSet(zero, 0.5, 0.9), // bGamma
-					Sets.newHashSet(0.1, 2., 10.)); // cGamma 
-			break; 
-		case NONE:
-			optimizer = new GridOptimizer( // null optimizer does no work
-					Sets.newHashSet(bTheta), // bTheta 
-					Sets.newHashSet(bGamma), // bGamma
-					Sets.newHashSet(cGamma)); // cGamma 
-			break;
-		default:
-			throw new IllegalArgumentException("unknown hyperparameter optimization method: "+args[0]);
-		}
-		    
-		final double[] bestPoint = new double[dims+1]; // track best point and value (in case the optimization crashes)
-		System.arraycopy(startPoint, 0, bestPoint, 0, dims); // assume the start point if nothing else is found (immediate crash)
-		PointValuePair optimum;
-		try{
-			optimum = optimizer.optimize(
-	           new ObjectiveFunction(new MultivariateFunction(){
-	            @Override
-	            public double value(double[] point) {
-	              double btheta = point[0];
-	              double bGamma = point[1];
-	              double cGamma = point[2];
-	              
-	              // ensure results are consistent by using same seed
-	              RandomGenerator algRnd = new MersenneTwister(algorithmSeed);
-	              RandomGenerator dataRnd = new MersenneTwister(dataSeed);
-	              PrintWriter nullPipe = new PrintWriter(ByteStreams.nullOutputStream());
-	              boolean onlyAnnotateLabeledData = true;
-	              double val = trainEval(nullPipe, nullPipe, nullPipe, nullPipe, nullPipe, 
-	                  yChains, mChains, dataRnd, algRnd, null, // null stopwatch
-	                  validationData, onlyAnnotateLabeledData, extraUnlabeledData, // train on validation (also include unannotated/unlabeled training data) 
-	                  Datasets.emptyDataset(validationData.getInfo()), // no test data 
-	                  annotations, 
-	                  btheta, bMu, bPhi, bGamma, cGamma, lambda, validationEvalPoint);
-	              if (val>bestPoint[dims]){
-		              System.arraycopy(point, 0, bestPoint, 0, dims); // copy point
-		              bestPoint[dims] = val;
-	              }
-	              logger.info("hyperparam search iteration {bTheta="+bTheta+" bGamma="+bGamma+" cGamma="+cGamma+"}="+val);
-	              return val;
-	            }
-	           }),
-	           new MaxEval(maxEvaluations),
-	           GoalType.MAXIMIZE,
-	           new InitialGuess(startPoint),
-	           new SimpleBounds(boundaries[0],
-	                            boundaries[1]));
-		}
-		catch (Exception e){
-			// this usually happens because of 
-			// 1) max iterations exceeded
-			// 2) weird bobyqa error that I can't find info about
-			// in either case, accept the best answer so far
-			e.printStackTrace();
-			logger.info("Hyperparameter optimizer failed for some reason (too many iterations?). Accepting the best answer so far: "+DoubleArrays.toString(bestPoint));
-			optimum = new PointValuePair(Arrays.copyOfRange(bestPoint, 0, dims), bestPoint[dims]);
-		}
-
-	    logger.info("finished hyperparameter optimization in "+optimizer.getEvaluations()+" evaluations");
-	    logger.info("final hyperparameter values: bTheta="+bTheta+" bGamma="+bGamma+" cGamma="+cGamma);
+	    logger.info("final ItemResp hyperparameter values: bTheta="+bTheta+" bGamma="+bGamma+" cGamma="+cGamma);
 	    // return values
-	    CrowdsourcingLearningCurve.bTheta = optimum.getPointRef()[0];
-	    CrowdsourcingLearningCurve.bGamma = optimum.getPointRef()[1];
-	    CrowdsourcingLearningCurve.cGamma = optimum.getPointRef()[2];
+	    adoptParams(parameterNames, optimum.getPointRef());
+	    exportParams(parameterNames); 
+	}
+	private void preparePointsAndBoundaries(String parameterNames){
+		List<Double> startPointList = Lists.newArrayList();
+		List<Double> boundariesStartList = Lists.newArrayList();
+		List<Double> boundariesEndList = Lists.newArrayList();
+		grid = Lists.newArrayList();
+		if (parameterNames.contains("btheta")){
+			startPointList.add(CrowdsourcingLearningCurve.bTheta);
+			boundariesStartList.add(edu.byu.nlp.util.Sets.min(bThetaGrid));
+			boundariesEndList.add(edu.byu.nlp.util.Sets.max(bThetaGrid));
+			grid.add(bThetaGrid);
+		}
+		if (parameterNames.contains("bphi")){
+			startPointList.add(CrowdsourcingLearningCurve.bPhi);
+			boundariesStartList.add(edu.byu.nlp.util.Sets.min(bPhiGrid));
+			boundariesEndList.add(edu.byu.nlp.util.Sets.max(bPhiGrid));
+			grid.add(bPhiGrid);
+		} 
+		if (parameterNames.contains("bgamma")){
+			startPointList.add(CrowdsourcingLearningCurve.bGamma);
+			boundariesStartList.add(edu.byu.nlp.util.Sets.min(bGammaGrid));
+			boundariesEndList.add(edu.byu.nlp.util.Sets.max(bGammaGrid));
+			grid.add(bGammaGrid);
+		} 
+		if (parameterNames.contains("cgamma")){
+			startPointList.add(CrowdsourcingLearningCurve.cGamma);
+			boundariesStartList.add(edu.byu.nlp.util.Sets.min(cGammaGrid));
+			boundariesEndList.add(edu.byu.nlp.util.Sets.max(cGammaGrid));
+			grid.add(cGammaGrid);
+		} 
+		startPoint = DoubleArrays.fromList(startPointList);
+		boundaries = new double[][]{DoubleArrays.fromList(boundariesStartList), DoubleArrays.fromList(boundariesEndList)};
+		Preconditions.checkState(startPoint.length>0,"no valid hyperparameters were recognized in the string \""+parameterNames);
+	}
+	private void exportParams(String parameterNames){
+		CrowdsourcingLearningCurve.bTheta = this.bTheta;
+		CrowdsourcingLearningCurve.bPhi = this.bPhi;
+		CrowdsourcingLearningCurve.bGamma = this.bGamma;
+		CrowdsourcingLearningCurve.cGamma = this.cGamma;
+	}
+	private void importParams(String parameterNames){
+		this.bTheta = CrowdsourcingLearningCurve.bTheta;
+		this.bPhi = CrowdsourcingLearningCurve.bPhi;
+		this.bGamma = CrowdsourcingLearningCurve.bGamma;
+		this.cGamma = CrowdsourcingLearningCurve.cGamma;
+	}
+	private void adoptParams(String parameterNames, double[] values){
+		int index = 0;
+		if (parameterNames.contains("btheta")){
+			this.bTheta = values[index++];
+		}
+		if (parameterNames.contains("bphi")){
+			this.bPhi = values[index++];
+		} 
+		if (parameterNames.contains("bgamma")){
+			this.bGamma = values[index++];
+		} 
+		if (parameterNames.contains("cgamma")){
+			this.cGamma = values[index++];
+		} 
 	}
   }
 
@@ -564,7 +583,7 @@ public class CrowdsourcingLearningCurve {
       Stopwatch stopwatchData, Dataset trainingData, boolean onlyAnnotateLabeledData, Dataset extraUnlabeledData,  
       Dataset testData, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations,
       double bTheta, double bMu, double bPhi, double bGamma, double cGamma, 
-      String lambda, int evalPoint) {
+      String lambda, int evalPoint, LabelingStrategy labelingStrategy, String training) {
     
     /////////////////////////////////////////////////////////////////////
     // Prepare data. 
@@ -731,7 +750,7 @@ public class CrowdsourcingLearningCurve {
       break;
 
     case cslda:
-      Preconditions.checkState(featureNormalizationConstant == -1); // cslda code currently can't handle fractional word counts
+      Preconditions.checkState(featureNormalizationConstant == -1, "cslda can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
       AssignmentInitializer zInitializer = new ModelInitialization.UniformAssignmentInitializer(numTopics, algRnd);
       AssignmentInitializer yInitializer = new ModelInitialization.BaselineInitializer(algRnd);
       labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, 
