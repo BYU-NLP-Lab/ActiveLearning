@@ -617,9 +617,9 @@ public class CrowdsourcingLearningCurve {
 
 
     Preconditions.checkArgument(trainingData.getInfo().getNumDocuments()>0,"Training dataset contained 0 documents. Cannot train a model with no training data.");
-    logger.info("\n======================================================================================");
-    logger.info("\n============= Train + eval (bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma+", evalpoint="+evalPoint+") ==============");
-    logger.info("\n======================================================================================");
+    logger.info("======================================================================================");
+    logger.info("============= Train + eval (bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma+", evalpoint="+evalPoint+") ==============");
+    logger.info("======================================================================================");
     logger.info("data seed "+dataSeed);
     logger.info("algorithm seed "+algorithmSeed);
     logger.info("data size: training labeled "+trainingData.getInfo().getNumDocumentsWithLabels());
