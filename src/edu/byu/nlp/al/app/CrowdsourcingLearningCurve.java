@@ -137,7 +137,7 @@ public class CrowdsourcingLearningCurve {
   private static String basedir = "./20_newsgroups";
 
   @Option(help="what kind of hyperparameter optimization to do. In the form maximize-[varname]-[type]-[maxiterations]. type in HyperparamOpt. Default is NONE.")
-  private static String hyperparamTraining = "maximize-all-NONE";
+  private static String hyperparamTraining = "none";
   
   private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB}
   
@@ -443,7 +443,7 @@ public class CrowdsourcingLearningCurve {
 	private EmpiricalAnnotations<SparseFeatureVector, Integer> annotations;
 	private int validationEvalPoint;
 	private Set<Double> bThetaGrid = Sets.newHashSet(0.01, 0.1, 0.5, 1.0);
-	private Set<Double> bPhiGrid = Sets.newHashSet(0.01, 0.1, 0.25, 0.5, 0.75, 1.0);
+	private Set<Double> bPhiGrid = Sets.newHashSet(0.01, 0.1, 0.5, 1.0);
 	private Set<Double> bGammaGrid = Sets.newHashSet(0.1, 0.5, 0.9);
 	private Set<Double> cGammaGrid = Sets.newHashSet(.1, 1.0, 10.0, 50.0);
 	private double bTheta,bPhi,bGamma,cGamma; // determined at run time
@@ -855,6 +855,9 @@ public class CrowdsourcingLearningCurve {
     Predictions predictions = labeler.label(trainingData, testData);
     
     // record results
+    logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+    logger.info("!! "+CrowdsourcingLearningCurve.class.getSimpleName()+" complete! Writing results.");
+    logger.info("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     int nullLabel = annotations.getDataInfo().getNullLabel();
     stopwatchInference.stop();
     OverallAccuracy accResults = accuracyComputer.compute(predictions, nullLabel);
