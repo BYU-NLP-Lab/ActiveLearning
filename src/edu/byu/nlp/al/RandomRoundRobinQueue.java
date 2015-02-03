@@ -21,6 +21,7 @@ import java.util.List;
 import org.apache.commons.math3.random.RandomGenerator;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
 
 import edu.byu.nlp.util.Collections3;
@@ -30,36 +31,70 @@ import edu.byu.nlp.util.Iterators2;
  * Randomly returns each item in the queue exactly once then loops and repeats in a different random order each
  * time. This class is thread-safe. 
  */
-// TODO(rhaertel): extract interface (or implement queue) and test!
 public class RandomRoundRobinQueue<E> implements Iterable<E> {
+ 
     private final List<E> coll;
     private final RandomGenerator rnd;
-    private Iterator<E> it;
-    
+    private int maxNumRepetitions;
+    private int k;
+
+    /**
+     * Loops forever
+     */
     public static <E> RandomRoundRobinQueue<E> from(Iterable<E> source, int k, RandomGenerator rnd) {
-        return new RandomRoundRobinQueue<E>(Lists.newArrayList(source), k, rnd);
+      return from(source,k,-1,rnd);
     }
     
-    @VisibleForTesting RandomRoundRobinQueue(List<E> coll, int k, RandomGenerator rnd) {
+    /**
+     * Loops maxNumRepetitions times
+     */
+    public static <E> RandomRoundRobinQueue<E> from(Iterable<E> source, int k, int maxNumRepetitions, RandomGenerator rnd) {
+        return new RandomRoundRobinQueue<E>(Lists.newArrayList(source), k, maxNumRepetitions, rnd);
+    }
+    
+    @VisibleForTesting RandomRoundRobinQueue(List<E> coll, int k, int maxNumRepetitions, RandomGenerator rnd) {
         this.coll = coll;
         this.rnd = rnd;
-        this.it = Iterators2.repeatItems(coll.iterator(), k);
+        this.maxNumRepetitions=maxNumRepetitions;
+        this.k=k;
     }
 
-    public synchronized E poll() {
-        if (coll.size() == 0) {
-            return null;
-        }
-        if (!it.hasNext()) {
-            Collections3.shuffle(coll, rnd);
-            it = coll.iterator();
-        }
-        return it.next();
-    }
 
     /** {@inheritDoc} */
     @Override
     public synchronized Iterator<E> iterator() {
-        return Lists.newArrayList(coll).iterator();
+      return new AbstractIterator<E>(){
+        @Override
+        protected E computeNext() {
+          try{
+            return poll();
+          }
+          catch (NoMoreItemsException e){
+            return endOfData();
+          }
+        }
+
+        private Iterator<E> it = null;
+        private int numRepetitions = 0;
+        private synchronized E poll() throws NoMoreItemsException {
+            if (coll.size() == 0) {
+              throw new NoMoreItemsException(); // signal finished
+            }
+            if (it==null || !it.hasNext()) {
+              if (maxNumRepetitions>0 && numRepetitions>=maxNumRepetitions){
+                throw new NoMoreItemsException(); // signal finished
+              }
+              else{
+                Collections3.shuffle(coll, rnd);
+                it = Iterators2.repeatItems(coll.iterator(), k);
+                numRepetitions++;
+              }
+            }
+            return it.next();
+        }
+      };
     }
+    
+    @SuppressWarnings("serial")
+    private static class NoMoreItemsException extends Exception{}
 }

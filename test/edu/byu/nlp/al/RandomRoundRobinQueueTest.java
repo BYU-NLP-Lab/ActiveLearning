@@ -15,7 +15,7 @@
  */
 package edu.byu.nlp.al;
 
-import java.util.Iterator;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.math3.random.MersenneTwister;
@@ -35,11 +35,13 @@ import edu.byu.nlp.util.Iterables2;
 public class RandomRoundRobinQueueTest {
 
   @Test
-  public void test1Pass(){
+  public void testUnlimited(){
     List<String> source = Lists.newArrayList("a","b","c");
+    RandomRoundRobinQueue<String> q = RandomRoundRobinQueue.from(source, 3, new MersenneTwister(1));
+    
+    ////// first pass
     
     // make sure each item appears exactly 3 times in 1st run.
-    RandomRoundRobinQueue<String> q = RandomRoundRobinQueue.from(source, 3, new MersenneTwister(1));
     Counter<String> itemCount = Counters.count(Iterables2.subInterval(q, 0, 9));
     Assertions.assertThat(itemCount.getCount("a")).isEqualTo(3);
     Assertions.assertThat(itemCount.getCount("b")).isEqualTo(3);
@@ -47,24 +49,17 @@ public class RandomRoundRobinQueueTest {
     Assertions.assertThat(itemCount.totalCount()).isEqualTo(3*3);
     
     // make sure the three, second, and third groups of three are the same (testing functionality of k)
-    q = RandomRoundRobinQueue.from(source, 3, new MersenneTwister(1));
     itemCount = Counters.count(Iterables2.subInterval(q, 0, 3));
     Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
-    q = RandomRoundRobinQueue.from(source, 3, new MersenneTwister(1));
-    itemCount = Counters.count(Iterables2.subInterval(q, 3, 6));
+    itemCount = Counters.count(Iterables2.subInterval(q, 3, 3));
     Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
-    q = RandomRoundRobinQueue.from(source, 3, new MersenneTwister(1));
-    itemCount = Counters.count(Iterables2.subInterval(q, 6, 9));
+    itemCount = Counters.count(Iterables2.subInterval(q, 6, 3));
     Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
-  }
 
-  @Test
-  public void test2Pass(){
-    List<String> source = Lists.newArrayList("a","b","c");
-    RandomRoundRobinQueue<String> q = RandomRoundRobinQueue.from(source, 3, new MersenneTwister(1));
+    ////// second pass
     
     // make sure each item appears exactly 3 times in each run.
-    Counter<String> itemCount = Counters.count(Iterables2.subInterval(q, 9, 18));
+    itemCount = Counters.count(Iterables2.subInterval(q, 9, 9));
     Assertions.assertThat(itemCount.getCount("a")).isEqualTo(3);
     Assertions.assertThat(itemCount.getCount("b")).isEqualTo(3);
     Assertions.assertThat(itemCount.getCount("c")).isEqualTo(3);
@@ -73,50 +68,103 @@ public class RandomRoundRobinQueueTest {
     // make sure the three, second, and third groups of three are the same (testing functionality of k)
     itemCount = Counters.count(Iterables2.subInterval(q, 0, 3));
     Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
-    itemCount = Counters.count(Iterables2.subInterval(q, 3, 6));
+    itemCount = Counters.count(Iterables2.subInterval(q, 3, 3));
     Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
-    itemCount = Counters.count(Iterables2.subInterval(q, 6, 9));
+    itemCount = Counters.count(Iterables2.subInterval(q, 6, 3));
     Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
-  }
 
-
-  @Test
-  public void testFull(){
-    List<String> source = Lists.newArrayList("a","b","c");
-    RandomRoundRobinQueue<String> q = RandomRoundRobinQueue.from(source, 3, new MersenneTwister(1));
+    ////// 225 passes
     
     // make sure each item appears exactly 3 times in each run.
-    Counter<String> itemCount = Counters.count(Iterables2.subInterval(q, 0, 18));
-    Assertions.assertThat(itemCount.getCount("a")).isEqualTo(6);
-    Assertions.assertThat(itemCount.getCount("b")).isEqualTo(6);
-    Assertions.assertThat(itemCount.getCount("c")).isEqualTo(6);
-    Assertions.assertThat(itemCount.totalCount()).isEqualTo(18);
+    itemCount = Counters.count(Iterables2.subInterval(q, 0, 9*225));
+    Assertions.assertThat(itemCount.getCount("a")).isEqualTo(3*225);
+    Assertions.assertThat(itemCount.getCount("b")).isEqualTo(3*225);
+    Assertions.assertThat(itemCount.getCount("c")).isEqualTo(3*225);
+    Assertions.assertThat(itemCount.totalCount()).isEqualTo(9*225);
     
   }
   
   @Test
-  public void visusalTest(){
-
+  public void testLimited(){
+    int numPasses = 5;
+    
     List<String> source = Lists.newArrayList("a","b","c");
-    RandomRoundRobinQueue<String> q = RandomRoundRobinQueue.from(source, 3, new MersenneTwister(1));
-    Iterator<String> asd = q.iterator();
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
-    System.out.println(asd.next());
+    RandomRoundRobinQueue<String> q = RandomRoundRobinQueue.from(source, 3, numPasses, new MersenneTwister(1));
+    
+    ////// first pass
+    
+    // make sure each item appears exactly 3 times in 1st run.
+    Counter<String> itemCount = Counters.count(Iterables2.subInterval(q, 0, 9));
+    Assertions.assertThat(itemCount.getCount("a")).isEqualTo(3);
+    Assertions.assertThat(itemCount.getCount("b")).isEqualTo(3);
+    Assertions.assertThat(itemCount.getCount("c")).isEqualTo(3);
+    Assertions.assertThat(itemCount.totalCount()).isEqualTo(3*3);
+    
+    // make sure the three, second, and third groups of three are the same (testing functionality of k)
+    itemCount = Counters.count(Iterables2.subInterval(q, 0, 3));
+    Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
+    itemCount = Counters.count(Iterables2.subInterval(q, 3, 3));
+    Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
+    itemCount = Counters.count(Iterables2.subInterval(q, 6, 3));
+    Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
+
+    ////// second pass
+    
+    // make sure each item appears exactly 3 times in each run.
+    itemCount = Counters.count(Iterables2.subInterval(q, 9, 9));
+    Assertions.assertThat(itemCount.getCount("a")).isEqualTo(3);
+    Assertions.assertThat(itemCount.getCount("b")).isEqualTo(3);
+    Assertions.assertThat(itemCount.getCount("c")).isEqualTo(3);
+    Assertions.assertThat(itemCount.totalCount()).isEqualTo(3*3);
+
+    // make sure the three, second, and third groups of three are the same (testing functionality of k)
+    itemCount = Counters.count(Iterables2.subInterval(q, 0, 3));
+    Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
+    itemCount = Counters.count(Iterables2.subInterval(q, 3, 3));
+    Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
+    itemCount = Counters.count(Iterables2.subInterval(q, 6, 3));
+    Assertions.assertThat(itemCount.numEntries()).isEqualTo(1);
+
+    ////// all 5 passes
+    
+    // make sure each item appears exactly 3 times in each run.
+    itemCount = Counters.count(Iterables2.subInterval(q, 0, 9*numPasses));
+    Assertions.assertThat(itemCount.getCount("a")).isEqualTo(3*numPasses);
+    Assertions.assertThat(itemCount.getCount("b")).isEqualTo(3*numPasses);
+    Assertions.assertThat(itemCount.getCount("c")).isEqualTo(3*numPasses);
+    Assertions.assertThat(itemCount.totalCount()).isEqualTo(9*numPasses);
+    
+    // ensure it stops after numPasses
+    ArrayList<String> qList = Lists.newArrayList(q);
+    Assertions.assertThat(qList.size()).isEqualTo(9*numPasses);
+    
   }
+  
+//  @Test
+//  public void visusalTest(){
+//
+//    List<String> source = Lists.newArrayList("a","b","c");
+//    RandomRoundRobinQueue<String> q = RandomRoundRobinQueue.from(source, 3, new MersenneTwister(1));
+//    System.out.println(Iterables2.subInterval(q, 3, 3));
+//    Iterator<String> asd = q.iterator();
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//    System.out.println(asd.next());
+//  }
   
 }
