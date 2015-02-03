@@ -15,6 +15,7 @@
  */
 package edu.byu.nlp.al;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -29,32 +30,39 @@ import edu.byu.nlp.dataset.Datasets;
 
 /**
  * An InstanceProvider that assigns each instance K annotations before moving to the next. The process is repeated
- * indefinitely after all instances have received K-more annotations. 
+ * indefinitely if maxNumPasses==-1. Samples annotators WITH replacement.
  * 
  * @author rah67
  *
  */
 public class GeneralizedRoundRobinInstanceManager<D, L> extends AbstractInstanceManager<D, L> implements InstanceManager<D, L> {
 
-    public static GeneralizedRoundRobinInstanceManager<SparseFeatureVector, Integer> newManager(int k,
+    public static GeneralizedRoundRobinInstanceManager<SparseFeatureVector, Integer> newManager(int k, 
+            Dataset data, AnnotationRecorder<SparseFeatureVector, Integer> annotationRecorder, RandomGenerator rnd) {
+      return newManager(k, -1, data, annotationRecorder, rnd);
+    }
+    
+    public static GeneralizedRoundRobinInstanceManager<SparseFeatureVector, Integer> newManager(int k, int maxNumPasses, 
             Dataset data, AnnotationRecorder<SparseFeatureVector, Integer> annotationRecorder, RandomGenerator rnd) {
       List<FlatInstance<SparseFeatureVector, Integer>> instances = Datasets.instancesIn(data);  
-        RandomRoundRobinQueue<FlatInstance<SparseFeatureVector, Integer>> q = RandomRoundRobinQueue.from(instances, k, rnd);
+        RandomRoundRobinQueue<FlatInstance<SparseFeatureVector, Integer>> q = RandomRoundRobinQueue.from(instances, k, maxNumPasses, rnd);
         return new GeneralizedRoundRobinInstanceManager<SparseFeatureVector, Integer>(q,annotationRecorder);
     }
 
+  private Iterator<FlatInstance<D, L>> it;
 	private final RandomRoundRobinQueue<FlatInstance<D, L>> q;
 
 	@VisibleForTesting
 	GeneralizedRoundRobinInstanceManager(RandomRoundRobinQueue<FlatInstance<D, L>> q, AnnotationRecorder<D, L> annotationRecorder) {
 	  super(annotationRecorder);
-		this.q = q;
+		this.it = q.iterator();
+		this.q=q;
 	}
 	
 	@Override
     public FlatInstance<D, L> instanceFor(long annotatorId, long timeout, TimeUnit timeUnit)
 	        throws InterruptedException {
-	    return q.poll();
+	    return it.next();
 	}
 	
 	@Override
@@ -65,6 +73,6 @@ public class GeneralizedRoundRobinInstanceManager<D, L> extends AbstractInstance
 	/** {@inheritDoc} */
 	@Override
 	public boolean isDone() {
-		return false;
+		return !it.hasNext();
 	}
 }

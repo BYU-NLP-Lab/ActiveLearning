@@ -49,6 +49,7 @@ import edu.byu.nlp.al.DatasetAnnotationRecorder;
 import edu.byu.nlp.al.EmpiricalAnnotationInstanceManager;
 import edu.byu.nlp.al.GeneralizedRoundRobinInstanceManager;
 import edu.byu.nlp.al.InstanceManager;
+import edu.byu.nlp.al.NDeepInstanceManager;
 import edu.byu.nlp.al.simulation.FallibleAnnotationProvider;
 import edu.byu.nlp.al.simulation.GoldLabelProvider;
 import edu.byu.nlp.al.util.MetricComputers.AnnotationsCounter;
@@ -255,9 +256,9 @@ public class CrowdsourcingLearningCurve {
   @Option(optStrings={"-k","--num-anns-per-instance"})
   private static int k = 1; // Used by grr/ab
 
-  private enum AnnotationStrategy {grr, ab, real}; 
+  private enum AnnotationStrategy {grr, threedeep, ab, real}; 
   @Option
-  private static AnnotationStrategy annotationStrategy = AnnotationStrategy.grr;
+  private static AnnotationStrategy annotationStrategy = AnnotationStrategy.threedeep;
   
   /* -------------  Model Params  ------------------- */
   
@@ -618,7 +619,7 @@ public class CrowdsourcingLearningCurve {
 
     Preconditions.checkArgument(trainingData.getInfo().getNumDocuments()>0,"Training dataset contained 0 documents. Cannot train a model with no training data.");
     logger.info("======================================================================================");
-    logger.info("============= Train + eval (bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma+", evalpoint="+evalPoint+") ==============");
+    logger.info("============= Train + eval ("+labelingStrategy+" bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma+", evalpoint="+evalPoint+") ==============");
     logger.info("======================================================================================");
     logger.info("data seed "+dataSeed);
     logger.info("algorithm seed "+algorithmSeed);
@@ -673,6 +674,10 @@ public class CrowdsourcingLearningCurve {
     case grr:
       chooser = new MajorityVote(algRnd);
       instanceManager = GeneralizedRoundRobinInstanceManager.newManager(k, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
+      break;
+    case threedeep:
+      chooser = new MajorityVote(algRnd);
+      instanceManager = NDeepInstanceManager.newManager(k, 3, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
       break;
     case real:
       chooser = new MajorityVote(algRnd);
