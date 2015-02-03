@@ -677,7 +677,7 @@ public class CrowdsourcingLearningCurve {
       break;
     case threedeep:
       chooser = new MajorityVote(algRnd);
-      instanceManager = NDeepInstanceManager.newManager(k, 3, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
+      instanceManager = NDeepInstanceManager.newManager(k, 1, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
       break;
     case real:
       chooser = new MajorityVote(algRnd);
