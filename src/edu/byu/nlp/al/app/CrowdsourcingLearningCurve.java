@@ -256,9 +256,9 @@ public class CrowdsourcingLearningCurve {
   @Option(optStrings={"-k","--num-anns-per-instance"})
   private static int k = 1; // Used by grr/ab
 
-  private enum AnnotationStrategy {grr, threedeep, ab, real}; 
+  private enum AnnotationStrategy {grr, kdeep, ab, real}; 
   @Option
-  private static AnnotationStrategy annotationStrategy = AnnotationStrategy.threedeep;
+  private static AnnotationStrategy annotationStrategy = AnnotationStrategy.kdeep;
   
   /* -------------  Model Params  ------------------- */
   
@@ -266,7 +266,7 @@ public class CrowdsourcingLearningCurve {
   private static int maxAnnotations = Integer.MAX_VALUE;
   
   @Option(help = "Accuracy levels of annotators. The first one assumed arbiter for ab1 and ab2")
-  private static AnnotatorAccuracySetting accuracyLevel = AnnotatorAccuracySetting.HIGH;
+  private static AnnotatorAccuracySetting annotatorAccuracy = AnnotatorAccuracySetting.HIGH;
   
   private static final ImmutableSet<Long> arbiters = ImmutableSet.of(0L); // the arbitrator is the first annotator by convention
 
@@ -379,7 +379,7 @@ public class CrowdsourcingLearningCurve {
     // if we are dealing with real data, we read in annotators with the data. Otherwise, 
     // we'll have to change it. 
     if (annotationStrategy!=AnnotationStrategy.real){
-      fullData = Datasets.withNewAnnotators(fullData, accuracyLevel.getAnnotatorIdIndexer());
+      fullData = Datasets.withNewAnnotators(fullData, annotatorAccuracy.getAnnotatorIdIndexer());
     }
     
 //    // FIXME: ensures all annotated instances appear before all unannotated. Not necessary, but helps ensure 
@@ -644,10 +644,10 @@ public class CrowdsourcingLearningCurve {
     List<? extends LabelProvider<SparseFeatureVector, Integer>> annotators;
     if (annotationStrategy==AnnotationStrategy.real){
       annotators = createEmpiricalAnnotators(annotations);
-      accuracyLevel = null; // avoid reporting misleading stats based on unused simulation parameters
+      annotatorAccuracy = null; // avoid reporting misleading stats based on unused simulation parameters
     }
     else{
-      annotators = createAnnotators(concealedLabelsTrainingData, accuracyLevel, concealedLabelsTrainingData.getInfo().getNumClasses(), dataRnd);
+      annotators = createAnnotators(concealedLabelsTrainingData, annotatorAccuracy, concealedLabelsTrainingData.getInfo().getNumClasses(), dataRnd);
     }
 
     logger.info("Number of Annotators = " + annotators.size());
@@ -675,7 +675,7 @@ public class CrowdsourcingLearningCurve {
       chooser = new MajorityVote(algRnd);
       instanceManager = GeneralizedRoundRobinInstanceManager.newManager(k, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
       break;
-    case threedeep:
+    case kdeep:
       chooser = new MajorityVote(algRnd);
       instanceManager = NDeepInstanceManager.newManager(k, 1, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
       break;
@@ -841,8 +841,8 @@ public class CrowdsourcingLearningCurve {
     AccuracyComputer accuracyComputer = new AccuracyComputer();
     AccuracyComputer top3AccuracyComputer = new AccuracyComputer(3);
     AnnotatorAccuracyComputer annAccComputer = new AnnotatorAccuracyComputer(annotators.size());
-    RmseAnnotatorAccuracyComputer rmseComputer = new RmseAnnotatorAccuracyComputer(accuracyLevel==null?null:accuracyLevel.getAccuracies());
-    RmseAnnotatorConfusionMatrixComputer rmseMatrixComputer = new RmseAnnotatorConfusionMatrixComputer(accuracyLevel==null?null:accuracyLevel.getConfusionMatrices());
+    RmseAnnotatorAccuracyComputer rmseComputer = new RmseAnnotatorAccuracyComputer(annotatorAccuracy==null?null:annotatorAccuracy.getAccuracies());
+    RmseAnnotatorConfusionMatrixComputer rmseMatrixComputer = new RmseAnnotatorConfusionMatrixComputer(annotatorAccuracy==null?null:annotatorAccuracy.getConfusionMatrices());
     MachineAccuracyComputer machineAccComputer = new MachineAccuracyComputer();
     RmseMachineAccuracyVsTestComputer machineRmseComputer = new RmseMachineAccuracyVsTestComputer();
     RmseMachineConfusionMatrixVsTestComputer machineMatRmseComputer = new RmseMachineConfusionMatrixVsTestComputer(trainingData.getInfo().getLabelIndexer());
@@ -1120,7 +1120,7 @@ public class CrowdsourcingLearningCurve {
           ""+algorithmSeed,
           dataset,
           ""+datasetType,
-          ""+accuracyLevel,
+          ""+annotatorAccuracy,
           ""+lambda,
           ""+featureNormalizationConstant,
           ""+dataSecs,
