@@ -113,8 +113,10 @@ import edu.byu.nlp.math.optimize.MultivariateOptimizers;
 import edu.byu.nlp.math.optimize.MultivariateOptimizers.OptimizationMethod;
 import edu.byu.nlp.util.Arrays;
 import edu.byu.nlp.util.DoubleArrays;
+import edu.byu.nlp.util.Enumeration;
 import edu.byu.nlp.util.Indexer;
 import edu.byu.nlp.util.IntArrays;
+import edu.byu.nlp.util.Iterables2;
 import edu.byu.nlp.util.Matrices;
 import edu.byu.nlp.util.Pair;
 import edu.byu.nlp.util.Strings;
@@ -267,6 +269,11 @@ public class CrowdsourcingLearningCurve {
   
   @Option(help = "Accuracy levels of annotators. The first one assumed arbiter for ab1 and ab2")
   private static AnnotatorAccuracySetting annotatorAccuracy = AnnotatorAccuracySetting.HIGH;
+
+  @Option(help = "If present, reads in a json file containing an array of confusion matrices and uses"
+      + "them to parameterize the annotators. Warning! They must have the same number of dimensions as "
+      + "classes are in the dataset being worked with.")
+  private static String annotatorFile = null;
   
   private static final ImmutableSet<Long> arbiters = ImmutableSet.of(0L); // the arbitrator is the first annotator by convention
 
@@ -378,6 +385,7 @@ public class CrowdsourcingLearningCurve {
     // ensure the dataset knows about all the annotators it will need to deal with.
     // if we are dealing with real data, we read in annotators with the data. Otherwise, 
     // we'll have to change it. 
+    annotatorAccuracy.generateConfusionMatrices(dataRnd, fullData.getInfo().getNumClasses(), annotatorFile);
     if (annotationStrategy!=AnnotationStrategy.real){
       fullData = Datasets.withNewAnnotators(fullData, annotatorAccuracy.getAnnotatorIdIndexer());
     }
@@ -652,6 +660,9 @@ public class CrowdsourcingLearningCurve {
     }
 
     logger.info("Number of Annotators = " + annotators.size());
+    for (int i=0; i<annotatorAccuracy.getAccuracies().length; i++){
+      logger.info("annotator #"+i+" accuracy="+annotatorAccuracy.getAccuracies()[i]);
+    }
     
     
     /////////////////////////////////////////////////////////////////////
@@ -891,7 +902,7 @@ public class CrowdsourcingLearningCurve {
 
     logger.info("annacc = " + DoubleArrays.toString(predictions.annotatorAccuracies()));
     logger.info("machacc = " + predictions.machineAccuracy());
-    logger.info("machacc_mat = " + Matrices.toString(predictions.machineConfusionMatrix()));
+//    logger.info("machacc_mat = " + Matrices.toString(predictions.machineConfusionMatrix()));
     logger.info("log joint = " + jointResults);
     logAccuracy("", accResults);
     logAccuracy("top3", acc3Results);
@@ -946,8 +957,8 @@ public class CrowdsourcingLearningCurve {
                                                                                     RandomGenerator rnd) {
     GoldLabelProvider<SparseFeatureVector,Integer> goldLabelProvider = GoldLabelProvider.from(concealedLabeledTrainingData);
     List<FallibleAnnotationProvider<SparseFeatureVector,Integer>> annotators = Lists.newArrayList();
-    for (double[][] confusionMatrix : accuracySetting.generateConfusionMatrices(rnd, numLabels)) {
-      ProbabilisticLabelErrorFunction<Integer> labelErrorFunction =
+    for (double[][] confusionMatrix : accuracySetting.getConfusionMatrices()) {
+      ProbabilisticLabelErrorFunction<Integer> labelErrorFunction = 
           new ProbabilisticLabelErrorFunction<Integer>(new ConfusionMatrixDistribution(confusionMatrix),rnd);
       FallibleAnnotationProvider<SparseFeatureVector,Integer> annotator = 
           FallibleAnnotationProvider.from(goldLabelProvider, labelErrorFunction);
@@ -1109,6 +1120,7 @@ public class CrowdsourcingLearningCurve {
           "bphi",
           "truncate_unannotated_data",
           "hyperparam_training",
+          "num_topics"
           });
     }
     public String compute(int dataSecs, int inferenceSecs, int initializationChains, PriorSpecification priors) {
@@ -1137,6 +1149,7 @@ public class CrowdsourcingLearningCurve {
           priors==null? "":  ""+priors.getBPhi(),
           ""+truncateUnannotatedData,
           hyperparamTraining,
+          ""+numTopics
         });
     }
   }
