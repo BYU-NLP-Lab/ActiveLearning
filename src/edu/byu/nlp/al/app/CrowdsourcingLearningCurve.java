@@ -1120,7 +1120,8 @@ public class CrowdsourcingLearningCurve {
           "bphi",
           "truncate_unannotated_data",
           "hyperparam_training",
-          "num_topics"
+          "num_topics",
+          "num_annotators",
           });
     }
     public String compute(int dataSecs, int inferenceSecs, int initializationChains, PriorSpecification priors) {
@@ -1149,7 +1150,8 @@ public class CrowdsourcingLearningCurve {
           priors==null? "":  ""+priors.getBPhi(),
           ""+truncateUnannotatedData,
           hyperparamTraining,
-          ""+numTopics
+          ""+numTopics,
+          ""+annotatorAccuracy.getNumAnnotators(),
         });
     }
   }
