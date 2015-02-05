@@ -397,8 +397,8 @@ public class CrowdsourcingLearningCurve {
     Preconditions.checkArgument(0<=validationPercent && validationPercent<=100,"validationPercent must be between 0 and 100 (inclusive) "+validationPercent);
     Preconditions.checkArgument(validationPercent+trainingPercent<=100,"trainingPercent+validationPercent must be between 0 and 100 (inclusive) "+trainingPercent+"+"+validationPercent);
     List<Dataset> annotatedDatasetSplits = Datasets.split(labeledDataset,new double[]{trainingPercent,validationPercent,(100-(trainingPercent+validationPercent))});
-    final Dataset trainingData = Datasets.join(annotatedDatasetSplits.get(0), unlabeledDataset);
-    final Dataset validationData = Datasets.join(annotatedDatasetSplits.get(1),unlabeledDataset);
+    final Dataset trainingData = annotatedDatasetSplits.get(0);
+    final Dataset validationData = annotatedDatasetSplits.get(1);
     final Dataset testData = annotatedDatasetSplits.get(2); // note: we could ensure we don't waste any observed labels here, but it's not critical
     
     logger.info("training data labeled "+trainingData.getInfo().getNumDocumentsWithLabels());
@@ -415,16 +415,17 @@ public class CrowdsourcingLearningCurve {
         MDC.put("context", "hyperopt");
     	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
     	// pass training data in as extra (unannotated/unlabeled) data
-    	Dataset extraUnlabeledData = Datasets.hideAllLabelsButNPerClass(trainingData, 0, null); // make sure "extra" data is unlabeled
+    	Dataset extraUnlabeledData = Datasets.join(Datasets.hideAllLabelsButNPerClass(trainingData, 0, null), unlabeledDataset); // make sure "extra" data is unlabeled
     	ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(mChains, mChains, validationData, extraUnlabeledData, annotations, validationEvalPoint));
         MDC.remove("context");
     }
 
     // final go
     boolean returnLabeledAccuracy = true;
+    Dataset extraUnlabeledData = Datasets.join(Datasets.hideAllLabelsButNPerClass(validationData, 0, null), unlabeledDataset); // make sure "extra" data is unlabeled
     trainEval(debugOut, annotationsOut, tabularPredictionsOut, resultsOut,
         serializeOut, yChains, mChains, dataRnd, algRnd, stopwatchData, 
-        trainingData, false, validationData, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
+        trainingData, false, extraUnlabeledData, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
         bTheta, bMu, bPhi, bGamma, cGamma, 
         lambda, evalPoint, labelingStrategy, training, returnLabeledAccuracy);
     

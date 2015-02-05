@@ -167,8 +167,9 @@ public class MetricComputers {
         while (annotations.size() < maxAnnotations) {
           annotations.add("");
         }
-        List<?> parts = Lists.newArrayList(pred.getInstance().getLabel(), // gold
-            pred.getPredictedLabel() != null ? pred.getPredictedLabel() : "", // predicted
+        List<?> parts = Lists.newArrayList(
+            (pred.getInstance().getLabel() != null)? pred.getInstance().getLabel(): "", // gold
+            (pred.getPredictedLabel() != null)? pred.getPredictedLabel() : "", // predicted
             Joiner.on(',').join(annotations), // annotations
             pred.getInstance().getInfo().getSource()); // source
         writer.println(Joiner.on(',').join(parts));
