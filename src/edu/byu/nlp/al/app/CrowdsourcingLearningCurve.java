@@ -1104,7 +1104,7 @@ public class CrowdsourcingLearningCurve {
           "algorithm_seed",
           "dataset",
           "corpus",
-          "accuracy_level",
+          "annotator_accuracy",
           "unannotated_document_weight",
           "pre_normalize_documents",
           "data_secs",
