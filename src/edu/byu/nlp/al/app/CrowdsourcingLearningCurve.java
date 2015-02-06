@@ -113,10 +113,8 @@ import edu.byu.nlp.math.optimize.MultivariateOptimizers;
 import edu.byu.nlp.math.optimize.MultivariateOptimizers.OptimizationMethod;
 import edu.byu.nlp.util.Arrays;
 import edu.byu.nlp.util.DoubleArrays;
-import edu.byu.nlp.util.Enumeration;
 import edu.byu.nlp.util.Indexer;
 import edu.byu.nlp.util.IntArrays;
-import edu.byu.nlp.util.Iterables2;
 import edu.byu.nlp.util.Matrices;
 import edu.byu.nlp.util.Pair;
 import edu.byu.nlp.util.Strings;
@@ -320,6 +318,9 @@ public class CrowdsourcingLearningCurve {
   		+ "to have a gold labeling to be used for diagonalization.")
   public static int goldInstancesForDiagonalization = -1;
   
+  @Option(help = "Group annotators using kmeans clustering on their empirical confusion matrices wrt majority vote."
+      + "If -1, don't do any annotator clustering.")
+  public static int numAnnotatorClusters = -1;
   
   
   public static void main(String[] args) throws FileNotFoundException, InterruptedException, FileSystemException{
@@ -378,6 +379,12 @@ public class CrowdsourcingLearningCurve {
     // currently cslda can't handle fractional word counts
     featureNormalizationConstant = labelingStrategy==LabelingStrategy.cslda? -1: featureNormalizationConstant;
     Dataset fullData = readData(dataRnd,featureNormalizationConstant);
+    
+    // transform the annotations (if requested) via annotation clustering
+    if (numAnnotatorClusters>0){
+      double parameterSmoothing = 0.01;
+      fullData = Datasets.withClusteredAnnotators(fullData, numAnnotatorClusters, parameterSmoothing, dataRnd);
+    }
 
     // Save annotations for future use (if we're using an empirical annotation strategy)
     final EmpiricalAnnotations<SparseFeatureVector, Integer> annotations = EmpiricalAnnotations.fromDataset(fullData);
@@ -387,7 +394,7 @@ public class CrowdsourcingLearningCurve {
     // we'll have to change it. 
     annotatorAccuracy.generateConfusionMatrices(dataRnd, fullData.getInfo().getNumClasses(), annotatorFile);
     if (annotationStrategy!=AnnotationStrategy.real){
-      fullData = Datasets.withNewAnnotators(fullData, annotatorAccuracy.getAnnotatorIdIndexer());
+      fullData = Datasets.withNewAnnotators(fullData, annotatorAccuracy.getAnnotatorIdIndexer(), false);
     }
     
 //    // FIXME: ensures all annotated instances appear before all unannotated. Not necessary, but helps ensure 
