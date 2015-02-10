@@ -385,6 +385,13 @@ public class CrowdsourcingLearningCurve {
       double parameterSmoothing = 0.01;
       fullData = Datasets.withClusteredAnnotators(fullData, numAnnotatorClusters, parameterSmoothing, dataRnd);
     }
+    logger.info("Dataset after annotator clustering: Number of labeled instances = " + fullData.getInfo().getNumDocumentsWithObservedLabels());
+    logger.info("Dataset after annotator clustering: Number of unlabeled instances = " + fullData.getInfo().getNumDocumentsWithoutObservedLabels());
+    logger.info("Dataset after annotator clustering: Number of tokens = " + fullData.getInfo().getNumTokens());
+    logger.info("Dataset after annotator clustering: Number of features = " + fullData.getInfo().getNumFeatures());
+    logger.info("Dataset after annotator clustering: Number of classes = " + fullData.getInfo().getNumClasses());
+    logger.info("Dataset after annotator clustering: Average Document Size = " + (fullData.getInfo().getNumTokens()/fullData.getInfo().getNumDocuments()));
+
 
     // Save annotations for future use (if we're using an empirical annotation strategy)
     final EmpiricalAnnotations<SparseFeatureVector, Integer> annotations = EmpiricalAnnotations.fromDataset(fullData);
@@ -394,7 +401,7 @@ public class CrowdsourcingLearningCurve {
     // we'll have to change it. 
     annotatorAccuracy.generateConfusionMatrices(dataRnd, fullData.getInfo().getNumClasses(), annotatorFile);
     if (annotationStrategy!=AnnotationStrategy.real){
-      fullData = Datasets.withNewAnnotators(fullData, annotatorAccuracy.getAnnotatorIdIndexer(), false);
+      fullData = Datasets.withNewAnnotators(fullData, annotatorAccuracy.getAnnotatorIdIndexer());
     }
     
 //    // FIXME: ensures all annotated instances appear before all unannotated. Not necessary, but helps ensure 
@@ -660,16 +667,17 @@ public class CrowdsourcingLearningCurve {
     List<? extends LabelProvider<SparseFeatureVector, Integer>> annotators;
     if (annotationStrategy==AnnotationStrategy.real){
       annotators = createEmpiricalAnnotators(annotations);
+      logger.info("Number of Human Annotators = " + annotators.size());
       annotatorAccuracy = null; // avoid reporting misleading stats based on unused simulation parameters
     }
     else{
       annotators = createAnnotators(concealedLabelsTrainingData, annotatorAccuracy, concealedLabelsTrainingData.getInfo().getNumClasses(), dataRnd);
+      logger.info("Number of Simulated Annotators = " + annotators.size());
+      for (int i=0; i<annotatorAccuracy.getAccuracies().length; i++){
+    	  logger.info("annotator #"+i+" accuracy="+annotatorAccuracy.getAccuracies()[i]);
+      }
     }
 
-    logger.info("Number of Annotators = " + annotators.size());
-    for (int i=0; i<annotatorAccuracy.getAccuracies().length; i++){
-      logger.info("annotator #"+i+" accuracy="+annotatorAccuracy.getAccuracies()[i]);
-    }
     
     
     /////////////////////////////////////////////////////////////////////
@@ -1068,12 +1076,12 @@ public class CrowdsourcingLearningCurve {
     // Postprocessing: remove all documents with duplicate sources or empty features
     data = Datasets.filteredDataset(data, Predicates.and(Datasets.filterDuplicateSources(), Datasets.filterNonEmpty()));
     
-    logger.info("Number of labeled instances = " + data.getInfo().getNumDocumentsWithObservedLabels());
-    logger.info("Number of unlabeled instances = " + data.getInfo().getNumDocumentsWithoutObservedLabels());
-    logger.info("Number of tokens = " + data.getInfo().getNumTokens());
-    logger.info("Number of features = " + data.getInfo().getNumFeatures());
-    logger.info("Number of classes = " + data.getInfo().getNumClasses());
-    logger.info("Average Document Size = " + (data.getInfo().getNumTokens()/data.getInfo().getNumDocuments()));
+    logger.info("Dataset on import: Number of labeled instances = " + data.getInfo().getNumDocumentsWithObservedLabels());
+    logger.info("Dataset on import: Number of unlabeled instances = " + data.getInfo().getNumDocumentsWithoutObservedLabels());
+    logger.info("Dataset on import: Number of tokens = " + data.getInfo().getNumTokens());
+    logger.info("Dataset on import: Number of features = " + data.getInfo().getNumFeatures());
+    logger.info("Dataset on import: Number of classes = " + data.getInfo().getNumClasses());
+    logger.info("Dataset on import: Average Document Size = " + (data.getInfo().getNumTokens()/data.getInfo().getNumDocuments()));
 
 //    for (DatasetInstance inst: data){
 //      Preconditions.checkState(inst.asFeatureVector().sum()>0,"document "+inst.getInfo().getSource()+" was empty");
@@ -1158,7 +1166,7 @@ public class CrowdsourcingLearningCurve {
           ""+truncateUnannotatedData,
           hyperparamTraining,
           ""+numTopics,
-          ""+annotatorAccuracy.getNumAnnotators(),
+          ""+priors.getNumAnnotators(),
         });
     }
   }
