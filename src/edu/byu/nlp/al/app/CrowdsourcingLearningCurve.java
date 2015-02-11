@@ -1037,17 +1037,8 @@ public class CrowdsourcingLearningCurve {
           FeatureSelectorFactories.conjoin(
               new CountCutoffFeatureSelectorFactory<String>(featureCountCutoff), 
               (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory<String>(topNFeaturesPerDocument)),
-          featureNormalizer, rnd)
+          featureNormalizer)
           .dataset();
-      
-//      System.out.println(data.getInfo().getFeatureIndexer());
-//      for (DatasetInstance inst: data){
-//        System.out.println(inst.getInfo().getSource());
-//        System.out.println(inst.getInfo().getNumAnnotations());
-//        System.out.println(inst.getAnnotations());
-//      }
-      
-      // don't randomize order (unlabeled data are at the rear)
       break;
     case ENRON:
     case NB2:
@@ -1066,13 +1057,14 @@ public class CrowdsourcingLearningCurve {
               (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory<String>(topNFeaturesPerDocument)),
           featureNormalizer)
           .dataset();
-      
-      // randomize order 
-      data.shuffle(rnd);
       break;
     default:
       throw new IllegalStateException("unknown dataset type: " + datasetType);
     }
+    
+    // randomize order 
+    data.shuffle(rnd);
+    
     // Postprocessing: remove all documents with duplicate sources or empty features
     data = Datasets.filteredDataset(data, Predicates.and(Datasets.filterDuplicateSources(), Datasets.filterNonEmpty()));
     
@@ -1089,7 +1081,6 @@ public class CrowdsourcingLearningCurve {
 //      // print document data to make sure import didn't mess things up
 //      System.out.println(inst.getInfo().getSource()+": "+Datasets.wordsIn(inst, data.getInfo().getFeatureIndexer()));
 //    }
-    
     
     return data;
   }
