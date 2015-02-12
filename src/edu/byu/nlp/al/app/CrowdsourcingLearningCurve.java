@@ -390,7 +390,8 @@ public class CrowdsourcingLearningCurve {
     logger.info("Dataset after annotator clustering: Number of tokens = " + fullData.getInfo().getNumTokens());
     logger.info("Dataset after annotator clustering: Number of features = " + fullData.getInfo().getNumFeatures());
     logger.info("Dataset after annotator clustering: Number of classes = " + fullData.getInfo().getNumClasses());
-    logger.info("Dataset after annotator clustering: Average Document Size = " + (fullData.getInfo().getNumTokens()/fullData.getInfo().getNumDocuments()));
+    logger.info("Dataset after annotator clustering: Average document size = " + (fullData.getInfo().getNumTokens()/fullData.getInfo().getNumDocuments()));
+    logger.info("Dataset after annotator clustering: Number of annotators = " + fullData.getInfo().getNumAnnotators());
 
 
     // Save annotations for future use (if we're using an empirical annotation strategy)
@@ -1073,7 +1074,8 @@ public class CrowdsourcingLearningCurve {
     logger.info("Dataset on import: Number of tokens = " + data.getInfo().getNumTokens());
     logger.info("Dataset on import: Number of features = " + data.getInfo().getNumFeatures());
     logger.info("Dataset on import: Number of classes = " + data.getInfo().getNumClasses());
-    logger.info("Dataset on import: Average Document Size = " + (data.getInfo().getNumTokens()/data.getInfo().getNumDocuments()));
+    logger.info("Dataset on import: Average document sze = " + (data.getInfo().getNumTokens()/data.getInfo().getNumDocuments()));
+    logger.info("Dataset on import: Number of annotators = " + data.getInfo().getNumAnnotators());
 
 //    for (DatasetInstance inst: data){
 //      Preconditions.checkState(inst.asFeatureVector().sum()>0,"document "+inst.getInfo().getSource()+" was empty");
