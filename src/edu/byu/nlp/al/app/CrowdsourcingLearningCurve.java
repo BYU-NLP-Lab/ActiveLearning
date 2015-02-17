@@ -288,7 +288,6 @@ public class CrowdsourcingLearningCurve {
   private static double cMu = 10;
   
   @Option
-//  private static double[] bGamma = new double[] { 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75 };
   private static double bGamma = 0.80;
   
   @Option
@@ -776,7 +775,7 @@ public class CrowdsourcingLearningCurve {
     // for the baseline approaches
     DatasetBuilder datasetBuilder = new DatasetBuilder(chooser);
 
-    PriorSpecification priors = new PriorSpecification(bTheta, bMu, cMu, DoubleArrays.of(bGamma, annotators.size()), cGamma, bPhi);
+    PriorSpecification priors = new PriorSpecification(bTheta, bMu, cMu, bGamma, cGamma, bPhi, annotators.size());
     switch(labelingStrategy){
 
     case ubaseline:
@@ -1151,7 +1150,7 @@ public class CrowdsourcingLearningCurve {
           diagonalizationMethod.toString(),
           ""+goldInstancesForDiagonalization,
           priors==null? "": ""+priors.getBTheta(),
-          priors==null? "": ""+priors.getBGamma(0),
+          priors==null? "": ""+priors.getBGamma(),
           priors==null? "": ""+priors.getCGamma(),
           priors==null? "": ""+priors.getBMu(),
           priors==null? "": ""+priors.getCMu(),
