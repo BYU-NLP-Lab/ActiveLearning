@@ -140,6 +140,9 @@ public class CrowdsourcingLearningCurve {
   @Option(help="what kind of hyperparameter optimization to do. In the form maximize-[varname]-[type]-[maxiterations]. type in HyperparamOpt. Default is NONE.")
   private static String hyperparamTraining = "none";
   
+  @Option(help="Should we perform inline hyperparameter tuning?")
+  private static boolean inlineHyperparamTuning = false;
+  
   private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB}
   
   @Option(help = "base directory of the documents")
@@ -775,7 +778,7 @@ public class CrowdsourcingLearningCurve {
     // for the baseline approaches
     DatasetBuilder datasetBuilder = new DatasetBuilder(chooser);
 
-    PriorSpecification priors = new PriorSpecification(bTheta, bMu, cMu, bGamma, cGamma, bPhi, annotators.size());
+    PriorSpecification priors = new PriorSpecification(bTheta, bMu, cMu, bGamma, cGamma, bPhi, inlineHyperparamTuning, annotators.size());
     switch(labelingStrategy){
 
     case ubaseline:
@@ -946,7 +949,7 @@ public class CrowdsourcingLearningCurve {
   }
   
   private static MultiAnnModelBuilder initMultiannModelBuilder(MultiAnnModelBuilder builder, 
-                              RandomGenerator algRnd, Dataset trainingData, PriorSpecification priors, 
+                              RandomGenerator algRnd, Dataset trainingData, PriorSpecification priors,
                               int[][] yChains, int[][] mChains) {
 //  ModelBuilder builder = BlockCollapsedMultiAnnModel.newModelBuilderWithUniform(priors, trainingData, rnd);
     if (yChains!=null && yChains.length>0){
@@ -1129,6 +1132,7 @@ public class CrowdsourcingLearningCurve {
           "hyperparam_training",
           "num_topics",
           "num_annotators",
+          "inline_hyperparam_tuning",
           });
     }
     public String compute(int dataSecs, int inferenceSecs, int initializationChains, PriorSpecification priors) {
@@ -1159,6 +1163,7 @@ public class CrowdsourcingLearningCurve {
           hyperparamTraining,
           ""+numTopics,
           ""+priors.getNumAnnotators(),
+          ""+inlineHyperparamTuning,
         });
     }
   }
