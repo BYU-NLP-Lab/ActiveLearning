@@ -52,7 +52,7 @@ import edu.byu.nlp.al.InstanceManager;
 import edu.byu.nlp.al.NDeepInstanceManager;
 import edu.byu.nlp.al.simulation.FallibleAnnotationProvider;
 import edu.byu.nlp.al.simulation.GoldLabelProvider;
-import edu.byu.nlp.al.util.MetricComputers.AnnotationsCounter;
+import edu.byu.nlp.al.util.MetricComputers.DatasetMetricComputer;
 import edu.byu.nlp.al.util.MetricComputers.AnnotatorAccuracyComputer;
 import edu.byu.nlp.al.util.MetricComputers.LogJointComputer;
 import edu.byu.nlp.al.util.MetricComputers.MachineAccuracyComputer;
@@ -870,7 +870,7 @@ public class CrowdsourcingLearningCurve {
     /////////////////////////////////////////////////////////////////////
     // Eval the labeler
     /////////////////////////////////////////////////////////////////////
-    AnnotationsCounter annotationsCounter = new AnnotationsCounter();
+    DatasetMetricComputer annotationsCounter = new DatasetMetricComputer();
     LogJointComputer jointComputer = new LogJointComputer();
     AccuracyComputer accuracyComputer = new AccuracyComputer();
     AccuracyComputer top3AccuracyComputer = new AccuracyComputer(3);
@@ -1135,7 +1135,6 @@ public class CrowdsourcingLearningCurve {
           "truncate_unannotated_data",
           "hyperparam_training",
           "num_topics",
-          "num_annotators",
           "annotator_cluster_method",
           "inline_hyperparam_tuning",
           });
@@ -1167,7 +1166,6 @@ public class CrowdsourcingLearningCurve {
           ""+truncateUnannotatedData,
           hyperparamTraining,
           ""+numTopics,
-          ""+priors.getNumAnnotators(),
           ""+clusterMethod,
           ""+inlineHyperparamTuning,
         });

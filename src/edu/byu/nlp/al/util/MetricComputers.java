@@ -19,6 +19,7 @@ import java.io.PrintWriter;
 import java.util.List;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 import edu.byu.nlp.classify.eval.AccuracyComputer;
@@ -76,25 +77,48 @@ public class MetricComputers {
 //    }
 //  }
 
-  public static class AnnotationsCounter {
-    public String compute(Dataset data) {
-      int annotationsCount = 0;
-      int numInstancesAnnotators = 0;
-      for (DatasetInstance inst : data) {
-        annotationsCount += inst.getInfo().getNumAnnotations();
-        numInstancesAnnotators += inst.getInfo().getNumAnnotations() == 0 ? 0
-            : 1;
-      }
-
-      return Joiner.on(',').join(
-          new String[] { "" + numInstancesAnnotators, "" + annotationsCount,
-              "" + data.getInfo().getNumDocumentsWithObservedLabels(), });
-    }
-
+  public static class DatasetMetricComputer {
     public String csvHeader() {
       return Joiner.on(',').join(
-          new String[] { "num_instances_annotated", "num_annotations",
-              "num_trusted_labels" });
+          new String[] { 
+              "num_instances_annotated", 
+              "num_annotations",
+              "num_annotators",
+              "num_classes",
+              "num_features",
+              "num_tokens",
+              "num_tokens_with_annotations",
+              "num_tokens_with_observed_labels",
+              "num_documents",
+              "num_documents_with_annotations",
+              "num_documents_with_observed_labels",
+              "dataset_source", 
+              });
+    }
+    public String compute(Dataset data) {
+      int annotationsCount = 0;
+      int numInstancesAnnotated = 0;
+      for (DatasetInstance inst : data) {
+        annotationsCount += inst.getInfo().getNumAnnotations();
+        numInstancesAnnotated += inst.getInfo().getNumAnnotations() == 0 ? 0: 1;
+      }
+      Preconditions.checkState(data.getInfo().getNumDocumentsWithAnnotations()==numInstancesAnnotated);
+      Preconditions.checkState(data.getInfo().getNumAnnotations()==annotationsCount);
+      return Joiner.on(',').join(
+          new String[] { 
+              "" + data.getInfo().getNumDocumentsWithAnnotations(), 
+              "" + data.getInfo().getNumAnnotations(),
+              "" + data.getInfo().getNumAnnotators(),
+              "" + data.getInfo().getNumClasses(),
+              "" + data.getInfo().getNumFeatures(),
+              "" + data.getInfo().getNumTokens(),
+              "" + data.getInfo().getNumTokensWithAnnotations(),
+              "" + data.getInfo().getNumTokensWithObservedLabels(),
+              "" + data.getInfo().getNumDocuments(),
+              "" + data.getInfo().getNumDocumentsWithAnnotations(),
+              "" + data.getInfo().getNumDocumentsWithObservedLabels(),
+              "" + data.getInfo().getSource(),
+              });
     }
   }
 
