@@ -108,6 +108,7 @@ import edu.byu.nlp.data.types.Dataset;
 import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
 import edu.byu.nlp.dataset.Datasets;
+import edu.byu.nlp.dataset.Datasets.AnnotatorClusterMethod;
 import edu.byu.nlp.io.Files2;
 import edu.byu.nlp.math.optimize.MultivariateOptimizers;
 import edu.byu.nlp.math.optimize.MultivariateOptimizers.OptimizationMethod;
@@ -320,6 +321,9 @@ public class CrowdsourcingLearningCurve {
   		+ "to have a gold labeling to be used for diagonalization.")
   public static int goldInstancesForDiagonalization = -1;
   
+  @Option
+  public static AnnotatorClusterMethod clusterMethod = AnnotatorClusterMethod.KM_MV;
+  
   @Option(help = "Group annotators using kmeans clustering on their empirical confusion matrices wrt majority vote."
       + "If -1, don't do any annotator clustering.")
   public static int numAnnotatorClusters = -1;
@@ -385,7 +389,7 @@ public class CrowdsourcingLearningCurve {
     // transform the annotations (if requested) via annotation clustering
     if (numAnnotatorClusters>0){
       double parameterSmoothing = 0.01;
-      fullData = Datasets.withClusteredAnnotators(fullData, numAnnotatorClusters, parameterSmoothing, dataRnd);
+      fullData = Datasets.withClusteredAnnotators(fullData, numAnnotatorClusters, clusterMethod, parameterSmoothing, dataRnd);
     }
     logger.info("Dataset after annotator clustering: Number of labeled instances = " + fullData.getInfo().getNumDocumentsWithObservedLabels());
     logger.info("Dataset after annotator clustering: Number of unlabeled instances = " + fullData.getInfo().getNumDocumentsWithoutObservedLabels());
@@ -1132,6 +1136,7 @@ public class CrowdsourcingLearningCurve {
           "hyperparam_training",
           "num_topics",
           "num_annotators",
+          "annotator_cluster_method",
           "inline_hyperparam_tuning",
           });
     }
@@ -1163,6 +1168,7 @@ public class CrowdsourcingLearningCurve {
           hyperparamTraining,
           ""+numTopics,
           ""+priors.getNumAnnotators(),
+          ""+clusterMethod,
           ""+inlineHyperparamTuning,
         });
     }
