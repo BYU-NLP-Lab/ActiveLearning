@@ -304,6 +304,8 @@ public class CrowdsourcingLearningCurve {
   @Option
   private static double trainingPercent = 85;
 
+  @Option(help = "The prior Gaussian variance on eta--the logistic regression weights of cslda")
+  private static double etaVariance = 1;
 
   @Option(help = "the label switching cheat should use the entire confusion matrix (including unannotated data). "
       + "This can have a bad effect on learning curves and should only be used for generating correlation plots.")
@@ -772,7 +774,7 @@ public class CrowdsourcingLearningCurve {
     // for the baseline approaches
     DatasetBuilder datasetBuilder = new DatasetBuilder(chooser);
 
-    PriorSpecification priors = new PriorSpecification(bTheta, bMu, cMu, bGamma, cGamma, bPhi, inlineHyperparamTuning, annotators.size());
+    PriorSpecification priors = new PriorSpecification(bTheta, bMu, cMu, bGamma, cGamma, bPhi, etaVariance, inlineHyperparamTuning, annotators.size());
     switch(labelingStrategy){
 
     case ubaseline:
@@ -1137,6 +1139,7 @@ public class CrowdsourcingLearningCurve {
           "bmu",
           "cmu",
           "bphi",
+          "eta_variance",
           "truncate_unannotated_data",
           "hyperparam_training",
           "num_topics",
@@ -1168,6 +1171,7 @@ public class CrowdsourcingLearningCurve {
           priors==null? "": ""+priors.getBMu(),
           priors==null? "": ""+priors.getCMu(),
           priors==null? "":  ""+priors.getBPhi(),
+          priors==null? "":  ""+priors.getEtaVariance(),
           ""+truncateUnannotatedData,
           hyperparamTraining,
           ""+numTopics,
