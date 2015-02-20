@@ -25,10 +25,9 @@ import com.google.common.collect.Lists;
 import edu.byu.nlp.classify.eval.AccuracyComputer;
 import edu.byu.nlp.classify.eval.Prediction;
 import edu.byu.nlp.classify.eval.Predictions;
-import edu.byu.nlp.data.FlatInstance;
 import edu.byu.nlp.data.types.Dataset;
 import edu.byu.nlp.data.types.DatasetInstance;
-import edu.byu.nlp.data.types.SparseFeatureVector;
+import edu.byu.nlp.math.AbstractRealMatrixPreservingVisitor;
 import edu.byu.nlp.util.DoubleArrays;
 
 /**
@@ -183,11 +182,15 @@ public class MetricComputers {
               "source")));
       // body
       for (Prediction pred : predictions.allPredictions()) {
-        List<Object> annotations = Lists.newArrayList();
-        for (FlatInstance<SparseFeatureVector, Integer> inst : pred
-            .getInstance().getAnnotations().getRawLabelAnnotations()) {
-          annotations.add(inst.getLabel());
-        }
+        final List<String> annotations = Lists.newArrayList();
+        pred.getInstance().getAnnotations().getLabelAnnotations().walkInOptimizedOrder(new AbstractRealMatrixPreservingVisitor() {
+          @Override
+          public void visit(int annotator, int annotationval, double count) {
+            for (int i=0; i<count; i++){
+              annotations.add(""+annotationval);
+            }
+          }
+        });
         while (annotations.size() < maxAnnotations) {
           annotations.add("");
         }
