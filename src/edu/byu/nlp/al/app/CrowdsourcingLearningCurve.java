@@ -86,6 +86,7 @@ import edu.byu.nlp.crowdsourcing.MultiAnnDatasetLabeler;
 import edu.byu.nlp.crowdsourcing.MultiAnnModelBuilders;
 import edu.byu.nlp.crowdsourcing.MultiAnnModelBuilders.MultiAnnModelBuilder;
 import edu.byu.nlp.crowdsourcing.PriorSpecification;
+import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingModel;
 import edu.byu.nlp.crowdsourcing.em.ConfusedSLDADiscreteModelLabeler;
 import edu.byu.nlp.crowdsourcing.em.RaykarModelLabeler;
 import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModel;
@@ -143,7 +144,7 @@ public class CrowdsourcingLearningCurve {
   private static String hyperparamTraining = "none";
   
   @Option(help="Should we perform inline hyperparameter tuning?")
-  private static boolean inlineHyperparamTuning = false;
+  private static boolean inlineHyperparamTuning = true;
   
   private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB}
   
@@ -236,25 +237,39 @@ public class CrowdsourcingLearningCurve {
       + "(e.g., 1 is equivalent to document feature normalization).")
   private static int featureNormalizationConstant = -1;
 
+  private enum LabelingStrategy {multiresp, ubaseline, baseline, momresp, itemresp, raykar, rayktrunc, varrayk, varmultiresp, varmomresp, varitemresp, cslda, random, files};
+  
+  /* -------------  Initialization Methods  ------------------- */
+
+  @Option
+  private static LabelingStrategy initializationStrategy = LabelingStrategy.random;
+  
   @Option(help = "A sequence of colon-delimited training operations with valid values "
-      + "sample,samplem,sampley,maximize,maximizem,maximizey,none where "
-      + "sample operations take hyphen-delimited arguments samples:annealingTemp. "
-      + "For example, --training=samplem-1-1:maximize:maximizey will "
-      + "take one sample of all the m variables at temp=1, then will do "
+      + "sample,maximize,none where "
+      + "sample operations take hyphen-delimited arguments [variablename]-[samples]-[annealingTemp]. "
+      + "For example, --training=sample-m-1-1:maximize-all:maximize-y will "
+      + "take one sample of all the variables at temp=1, then will do "
       + "joint maximization followed by marginal maximization of y.")
-  private static String training = "samplem-1-1:maximize:maximizey";
+  private static String initializationTraining = "maximize-all";
+
+  /* -------------  Dataset Labeler Methods  ------------------- */
+
+  @Option
+  private static LabelingStrategy labelingStrategy = LabelingStrategy.ubaseline;
+
+  @Option(help = "A sequence of colon-delimited training operations with valid values "
+      + "sample,maximize,none where "
+      + "sample operations take hyphen-delimited arguments [variablename]-[samples]-[annealingTemp]. "
+      + "For example, --training=sample-m-1-1:maximize-all:maximize-y will "
+      + "take one sample of all the variables at temp=1, then will do "
+      + "joint maximization followed by marginal maximization of y.")
+  private static String training = "maximize-all";
 
   @Option(help = "base the prediction on the single final state of the model. "
       + "Otherwise, the model tracks all samples during the final round of "
       + "annealing and makes a prediction based on marginal distribution.")
   private static boolean predictSingleLastSample = false;
-
-
-  /* -------------  Dataset Labeler Methods  ------------------- */
-
-  private enum LabelingStrategy {multiresp, ubaseline, baseline, momresp, itemresp, raykar, rayktrunc, varrayk, varmultiresp, varmomresp, varitemresp, cslda};
-  @Option
-  private static LabelingStrategy labelingStrategy = LabelingStrategy.multiresp;
+  
   
   /* -------------  Instance Selection Methods  ------------------- */
   
@@ -439,9 +454,12 @@ public class CrowdsourcingLearningCurve {
     	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
     	// pass training data in as extra (unannotated/unlabeled) data
     	Dataset extraUnlabeledData = Datasets.join(Datasets.hideAllLabelsButNPerClass(trainingData, 0, null), unlabeledDataset); // make sure "extra" data is unlabeled
-    	ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(chains, validationData, extraUnlabeledData, annotations, validationEvalPoint));
+    	 ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(chains, validationData, extraUnlabeledData, annotations, validationEvalPoint));
         MDC.remove("context");
     }
+    
+    // initialize model variables
+    
 
     // final go
     boolean returnLabeledAccuracy = true;
@@ -537,7 +555,7 @@ public class CrowdsourcingLearningCurve {
 			              Datasets.emptyDataset(validationData.getInfo()), // no test data 
 			              annotations, 
 			              bTheta, CrowdsourcingLearningCurve.bMu, bPhi, bGamma, cGamma, CrowdsourcingLearningCurve.lambda, validationEvalPoint,
-			              hyperLabelingStrategy, hyperTraining, returnLabeledAccuracy); // use indicated training regime
+			              hyperLabelingStrategy, hyperTraining, returnLabeledAccuracy).getGoodness(); // use indicated training regime
 			          logger.info("ItemResp hyperparam search iteration "+iterations+" {bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma+"}="+val);
 			          return val;
 		        }
@@ -616,7 +634,7 @@ public class CrowdsourcingLearningCurve {
    * @param returnLabeledAccuracy if false, returns log joint
    * @return
    */
-  private static double trainEval(PrintWriter debugOut,
+  private static SerializableCrowdsourcingModel trainEval(PrintWriter debugOut,
       PrintWriter annotationsOut, PrintWriter tabularPredictionsOut,
       PrintWriter resultsOut, PrintWriter serializeOut, int[][][] chains, 
       RandomGenerator dataRnd, RandomGenerator algRnd,
@@ -918,6 +936,8 @@ public class CrowdsourcingLearningCurve {
     logAccuracy("", accResults);
     logAccuracy("top3", acc3Results);
 
+    SerializableCrowdsourcingModel modelState = SerializableCrowdsourcingModel.of(labeler.);
+    
     // hyperparam optimization is based on this result
     if (returnLabeledAccuracy){
     	return accResults.getLabeledAccuracy().getAccuracy(); // labeled accuracy (of interest but very noisy/jumpy)
