@@ -31,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
-import com.google.common.base.Charsets;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.base.Joiner;
@@ -64,7 +63,9 @@ import edu.byu.nlp.classify.NaiveBayesLearner;
 import edu.byu.nlp.classify.UncertaintyPreservingNaiveBayesLearner;
 import edu.byu.nlp.classify.data.DatasetBuilder;
 import edu.byu.nlp.classify.data.DatasetLabeler;
+import edu.byu.nlp.classify.data.GoldLabelLabeler;
 import edu.byu.nlp.classify.data.LabelChooser;
+import edu.byu.nlp.classify.data.RandomLabelLabeler;
 import edu.byu.nlp.classify.data.SingleLabelLabeler;
 import edu.byu.nlp.classify.eval.AccuracyComputer;
 import edu.byu.nlp.classify.eval.ConfusionMatrixComputer;
@@ -86,7 +87,8 @@ import edu.byu.nlp.crowdsourcing.MultiAnnDatasetLabeler;
 import edu.byu.nlp.crowdsourcing.MultiAnnModelBuilders;
 import edu.byu.nlp.crowdsourcing.MultiAnnModelBuilders.MultiAnnModelBuilder;
 import edu.byu.nlp.crowdsourcing.PriorSpecification;
-import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingModel;
+import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingState;
+import edu.byu.nlp.crowdsourcing.SerializedLabelLabeler;
 import edu.byu.nlp.crowdsourcing.em.ConfusedSLDADiscreteModelLabeler;
 import edu.byu.nlp.crowdsourcing.em.RaykarModelLabeler;
 import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModel;
@@ -112,7 +114,6 @@ import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
 import edu.byu.nlp.dataset.Datasets;
 import edu.byu.nlp.dataset.Datasets.AnnotatorClusterMethod;
-import edu.byu.nlp.io.Files2;
 import edu.byu.nlp.math.optimize.MultivariateOptimizers;
 import edu.byu.nlp.math.optimize.MultivariateOptimizers.OptimizationMethod;
 import edu.byu.nlp.util.Arrays;
@@ -237,7 +238,7 @@ public class CrowdsourcingLearningCurve {
       + "(e.g., 1 is equivalent to document feature normalization).")
   private static int featureNormalizationConstant = -1;
 
-  private enum LabelingStrategy {multiresp, ubaseline, baseline, momresp, itemresp, raykar, rayktrunc, varrayk, varmultiresp, varmomresp, varitemresp, cslda, random, files};
+  private enum LabelingStrategy {multiresp, ubaseline, baseline, momresp, itemresp, raykar, rayktrunc, varrayk, varmultiresp, varmomresp, varitemresp, cslda, random, gold, pass};
   
   /* -------------  Initialization Methods  ------------------- */
 
@@ -350,39 +351,42 @@ public class CrowdsourcingLearningCurve {
   public static void main(String[] args) throws InterruptedException, IOException{
     // parse CLI arguments
     ArgumentValues opts = new ArgumentParser(CrowdsourcingLearningCurve.class).parseArgs(args);
-    
-    // Read in chains of parameter settings (if any).
-    // Each file is assumed to represent a single chain, and can contain a matrix of values.
-    // How these values are interpreted depends on the algorithm in question.
-    String[] initializeWithChains = opts.getPositionalArgs();
-    int[][][] chains = (initializeWithChains.length>0)? new int[initializeWithChains.length][][]: null;
-    for (int i = 0; i < initializeWithChains.length; i++) {
-      chains[i] = Matrices.parseIntMatrix(Files2.toString(initializeWithChains[i], Charsets.UTF_8));
-      Preconditions.checkNotNull(chains[i],"attempted to initialize with empty/invalid file: "+initializeWithChains[i]);
-    }
-    
-    // open IO streams
-    PrintWriter debugOut = debugFile == null ? new PrintWriter(ByteStreams.nullOutputStream()) : new PrintWriter(debugFile);
-    PrintWriter annotationsOut = annotationsFile == null ? new PrintWriter(ByteStreams.nullOutputStream()) : new PrintWriter(annotationsFile);
-    PrintWriter tabularPredictionsOut = tabularFile == null ? new PrintWriter(ByteStreams.nullOutputStream()) : new PrintWriter(tabularFile);
-    PrintWriter resultsOut = resultsFile == null ? new PrintWriter(System.out) : new PrintWriter(resultsFile);
-    PrintWriter serializeOut = serializeToFile==null ? new PrintWriter(ByteStreams.nullOutputStream()) : new PrintWriter(serializeToFile);
-    
-    // pass on to the main program
-    CrowdsourcingLearningCurve.run(args, debugOut, annotationsOut, tabularPredictionsOut, resultsOut, serializeOut, chains);
-  }
-  
-  
-  
-  
-  
-  public static void run(String[] args, PrintWriter debugOut, PrintWriter annotationsOut, PrintWriter tabularPredictionsOut, PrintWriter resultsOut, PrintWriter serializeOut, final int[][][] chains) throws InterruptedException, FileNotFoundException, FileSystemException {
-    ArgumentValues opts = new ArgumentParser(CrowdsourcingLearningCurve.class).parseArgs(args);
 
     // this generator deals with data creation (so that all runs with the same annotation strategy
     // settings get the same datasets, regardless of the algorithm run on them)
     RandomGenerator dataRnd = new MersenneTwister(dataSeed);
     RandomGenerator algRnd = new MersenneTwister(algorithmSeed);
+    
+    // Read in chains of parameter settings (if any).
+    // Each file is assumed to represent a single chain.
+    List<SerializableCrowdsourcingState> initializationChains = Lists.newArrayList();
+    for (String chainFile: opts.getPositionalArgs()){
+    	initializationChains.add(SerializableCrowdsourcingState.deserializeFrom(chainFile));
+    }
+    // aggregate chains (this is calculating max marginal val of variables according to chains)
+    initializationChains = (initializationChains.size()==0)? null: initializationChains;  
+    SerializableCrowdsourcingState initializationState = SerializableCrowdsourcingState.majorityVote(initializationChains, algRnd);
+    
+    // open IO streams
+    PrintWriter debugOut = debugFile == null ?  nullWriter(): new PrintWriter(debugFile);
+    PrintWriter annotationsOut = annotationsFile == null ? nullWriter() : new PrintWriter(annotationsFile);
+    PrintWriter tabularPredictionsOut = tabularFile == null ? nullWriter() : new PrintWriter(tabularFile);
+    PrintWriter resultsOut = resultsFile == null ? new PrintWriter(System.out) : new PrintWriter(resultsFile);
+    PrintWriter serializeOut = serializeToFile==null ? nullWriter() : new PrintWriter(serializeToFile);
+    
+    // pass on to the main program
+    CrowdsourcingLearningCurve.run(args, debugOut, annotationsOut, tabularPredictionsOut, resultsOut, serializeOut, initializationState, dataRnd, algRnd);
+  }
+  
+  private static PrintWriter nullWriter(){
+	  return new PrintWriter(ByteStreams.nullOutputStream());
+  }
+  
+  
+  
+  public static void run(String[] args, PrintWriter debugOut, PrintWriter annotationsOut, PrintWriter tabularPredictionsOut, PrintWriter resultsOut, PrintWriter serializeOut, 
+		  SerializableCrowdsourcingState initializationState, RandomGenerator dataRnd, RandomGenerator algRnd) throws InterruptedException, FileNotFoundException, FileSystemException {
+    ArgumentValues opts = new ArgumentParser(CrowdsourcingLearningCurve.class).parseArgs(args);
     
     // record options
     debugOut.print(opts.optionsMap());
@@ -420,11 +424,6 @@ public class CrowdsourcingLearningCurve {
       fullData = Datasets.withNewAnnotators(fullData, annotatorAccuracy.getAnnotatorIdIndexer());
     }
     
-//    // FIXME: ensures all annotated instances appear before all unannotated. Not necessary, but helps ensure 
-//    // results match previous results
-//    Pair<? extends Dataset, ? extends Dataset> fullDataDivided = Datasets.divideInstancesWithAnnotations(fullData);
-//    fullData = Datasets.join(fullDataDivided.getFirst(), fullDataDivided.getSecond());
-    
     // split into training, validation, test
     // strategy: split the labeled portion of the dataset into train/validate/test
     // and then append unlabeled instances back onto validation and train. 
@@ -448,27 +447,35 @@ public class CrowdsourcingLearningCurve {
 
     stopwatchData.stop();
     
-    // cross-validation sweep unannotated-document-weight (optional)
-    if (validationPercent>0){
-        MDC.put("context", "hyperopt");
-    	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
-    	// pass training data in as extra (unannotated/unlabeled) data
-    	Dataset extraUnlabeledData = Datasets.join(Datasets.hideAllLabelsButNPerClass(trainingData, 0, null), unlabeledDataset); // make sure "extra" data is unlabeled
-    	 ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(chains, validationData, extraUnlabeledData, annotations, validationEvalPoint));
-        MDC.remove("context");
-    }
-    
-    // initialize model variables
-    
-
-    // final go
     boolean returnLabeledAccuracy = true;
     Dataset extraUnlabeledData = Datasets.join(Datasets.hideAllLabelsButNPerClass(validationData, 0, null), unlabeledDataset); // make sure "extra" data is unlabeled
-    trainEval(debugOut, annotationsOut, tabularPredictionsOut, resultsOut,
-        serializeOut, chains, dataRnd, algRnd, stopwatchData, 
+
+    // initialize model variables
+    SerializableCrowdsourcingState initialization = trainEval(nullWriter(), nullWriter(), nullWriter(), nullWriter(),
+            null, dataRnd, algRnd, stopwatchData, 
+            trainingData, false, extraUnlabeledData, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
+            bTheta, bMu, bPhi, bGamma, cGamma, 
+            lambda, evalPoint, initializationStrategy, initializationTraining, returnLabeledAccuracy);
+    
+    // cross-validation sweep unannotated-document-weight (optional)
+    if (validationPercent>0){
+    	MDC.put("context", "hyperopt");
+    	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
+    	// pass training data in as extra (unannotated/unlabeled) data
+    	Dataset extra = Datasets.join(Datasets.hideAllLabelsButNPerClass(trainingData, 0, null), unlabeledDataset); // make sure "extra" data is unlabeled
+    	ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(initialization, validationData, extra, annotations, validationEvalPoint));
+    	MDC.remove("context");
+    }
+
+    // final go
+    SerializableCrowdsourcingState finalState = trainEval(debugOut, annotationsOut, tabularPredictionsOut, resultsOut,
+        initialization, dataRnd, algRnd, stopwatchData, 
         trainingData, false, extraUnlabeledData, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
         bTheta, bMu, bPhi, bGamma, cGamma, 
         lambda, evalPoint, labelingStrategy, training, returnLabeledAccuracy);
+    
+    // serialize state out
+    finalState.serializeTo(serializeOut);
     
     debugOut.close();
     annotationsOut.close();
@@ -479,7 +486,6 @@ public class CrowdsourcingLearningCurve {
 
   
   private static class CrowdsourcingHyperparameterOptimizer implements SupportsTrainingOperations{
-  private int[][][] chains;
 	private Dataset validationData;
 	private Dataset extraUnlabeledData;
 	private EmpiricalAnnotations<SparseFeatureVector, Integer> annotations;
@@ -492,13 +498,14 @@ public class CrowdsourcingLearningCurve {
 	private List<Set<Double>> grid = null; // determined at run time
 	private double[] startPoint = null; // determined at run time
 	private double[][] boundaries = null; // determined at run time
+	private SerializableCrowdsourcingState initialization;
 	public CrowdsourcingHyperparameterOptimizer(
-		  int[][][] chains, 
+		  SerializableCrowdsourcingState initialization, 
 	      Dataset validationData,
 	      Dataset extraData,
 	      EmpiricalAnnotations<SparseFeatureVector, Integer> annotations,
 	      int evalPoint){
-		  this.chains=chains;
+		  this.initialization=initialization;
 		  this.validationData=validationData;
 		  this.extraUnlabeledData=extraData;
 		  this.annotations=annotations;
@@ -547,10 +554,10 @@ public class CrowdsourcingLearningCurve {
 			          // ensure results are consistent by using same seed
 			          RandomGenerator algRnd = new MersenneTwister(algorithmSeed);
 			          RandomGenerator dataRnd = new MersenneTwister(dataSeed);
-			          PrintWriter nullPipe = new PrintWriter(ByteStreams.nullOutputStream());
+			          PrintWriter nullPipe = nullWriter();
 			          boolean onlyAnnotateLabeledData = true;
-			          double val = trainEval(nullPipe, nullPipe, nullPipe, nullPipe, nullPipe, 
-			              chains, dataRnd, algRnd, null, // null stopwatch
+			          double val = trainEval(nullPipe, nullPipe, nullPipe, nullPipe, 
+			              initialization, dataRnd, algRnd, null, // null stopwatch
 			              validationData, onlyAnnotateLabeledData, extraUnlabeledData, // train on validation (also include unannotated/unlabeled training data) 
 			              Datasets.emptyDataset(validationData.getInfo()), // no test data 
 			              annotations, 
@@ -634,9 +641,9 @@ public class CrowdsourcingLearningCurve {
    * @param returnLabeledAccuracy if false, returns log joint
    * @return
    */
-  private static SerializableCrowdsourcingModel trainEval(PrintWriter debugOut,
+  private static SerializableCrowdsourcingState trainEval(PrintWriter debugOut,
       PrintWriter annotationsOut, PrintWriter tabularPredictionsOut,
-      PrintWriter resultsOut, PrintWriter serializeOut, int[][][] chains, 
+      PrintWriter resultsOut, SerializableCrowdsourcingState initialState, 
       RandomGenerator dataRnd, RandomGenerator algRnd,
       Stopwatch stopwatchData, Dataset trainingData, boolean onlyAnnotateLabeledData, Dataset extraUnlabeledData,  
       Dataset testData, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations,
@@ -788,6 +795,14 @@ public class CrowdsourcingLearningCurve {
     /////////////////////////////////////////////////////////////////////
     DatasetLabeler labeler;
     
+    // state initialization
+    AssignmentInitializer yInitializer = ModelInitialization.backoffStateInitializerForY(initialState, 
+    		new ModelInitialization.BaselineInitializer(algRnd)); 
+    AssignmentInitializer mInitializer = ModelInitialization.backoffStateInitializerForM(initialState, 
+			new ModelInitialization.BaselineInitializer(algRnd, true)); // slightly noisier default initialization for m 
+    MatrixAssignmentInitializer zInitializer = ModelInitialization.backoffStateInitializerForZ(initialState, 
+    		ModelInitialization.uniformRowMatrixInitializer(new ModelInitialization.UniformAssignmentInitializer(numTopics, algRnd))); 
+    
     // this builder uses the chooser to arbitrate the labeled portion of the dataset
     // for the baseline approaches
     DatasetBuilder datasetBuilder = new DatasetBuilder(chooser);
@@ -795,16 +810,30 @@ public class CrowdsourcingLearningCurve {
     PriorSpecification priors = new PriorSpecification(bTheta, bMu, cMu, bGamma, cGamma, bPhi, etaVariance, inlineHyperparamTuning, annotators.size());
     switch(labelingStrategy){
 
+    // uniform random predictions
+    case random:
+    	labeler = new RandomLabelLabeler(algRnd);
+    	break;
+    	
+    // use initial values unchanged
+    case pass:
+    	labeler = new SerializedLabelLabeler(initialState);
+    	break;
+    	
+    case gold:
+    	labeler = new GoldLabelLabeler();
+    	break;
+    
     case ubaseline:
       // this labeler reports labeled data without alteration, and trains an uncertainty-
       // preserving naive bayes variant on it to label the unlabeled and test portions
-      labeler = new SingleLabelLabeler(new UncertaintyPreservingNaiveBayesLearner(), datasetBuilder, annotators.size(), serializeOut);
+      labeler = new SingleLabelLabeler(new UncertaintyPreservingNaiveBayesLearner(), datasetBuilder, annotators.size());
       break;
       
     case baseline:
       // this labeler reports labeled data without alteration, and trains a naive bayes 
       // on it to label the unlabeled and test portions
-      labeler = new SingleLabelLabeler(new NaiveBayesLearner(), datasetBuilder, annotators.size(), serializeOut);
+      labeler = new SingleLabelLabeler(new NaiveBayesLearner(), datasetBuilder, annotators.size());
       break;
 
     case raykar:
@@ -818,29 +847,33 @@ public class CrowdsourcingLearningCurve {
 
     case cslda:
       Preconditions.checkState(featureNormalizationConstant == -1, "cslda can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
-      labeler = newCsldaModel(trainingData, priors, numTopics, chains, serializeOut, algRnd);
+      labeler = newCsldaModel(trainingData, priors, numTopics, yInitializer, zInitializer, algRnd);
       break;
       
     case varrayk:
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
-      labeler = new MeanFieldLabeler(initMultiannModelBuilder(
-          new MeanFieldRaykarModel.ModelBuilder(), algRnd, trainingData, priors, chains), training);
+      labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldRaykarModel.ModelBuilder(), 
+    				  priors, trainingData, yInitializer, mInitializer, algRnd),
+    		  training);
       break;
       
     case varmultiresp:
-      labeler = new MeanFieldLabeler(initMultiannModelBuilder(
-          new MeanFieldMultiRespModel.ModelBuilder(), algRnd, trainingData, priors, chains), training);
+        labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMultiRespModel.ModelBuilder(), 
+				  priors, trainingData, yInitializer, mInitializer, algRnd),
+		  training);
       break;
       
     case varmomresp:
-      labeler = new MeanFieldLabeler(initMultiannModelBuilder(
-          new MeanFieldMomRespModel.ModelBuilder(), algRnd, trainingData, priors, chains), training);
+        labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMomRespModel.ModelBuilder(), 
+				  priors, trainingData, yInitializer, mInitializer, algRnd),
+	    		  training);
       break;
       
     case varitemresp:
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
-      labeler = new MeanFieldLabeler(initMultiannModelBuilder(
-          new MeanFieldItemRespModel.ModelBuilder(), algRnd, trainingData, priors, chains), training);
+      labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldItemRespModel.ModelBuilder(), 
+				  priors, trainingData, yInitializer, mInitializer, algRnd),
+	    		  training);
       break;
       
     // some variant of multiannotator model sampling
@@ -864,12 +897,13 @@ public class CrowdsourcingLearningCurve {
       default:
         throw new IllegalArgumentException("Unknown labeling strategy: " + labelingStrategy.name());
       }
-      initMultiannModelBuilder(multiannModelBuilder, algRnd, trainingData, priors, chains);
       
-      labeler = new MultiAnnDatasetLabeler(multiannModelBuilder, debugOut, 
-          serializeOut, predictSingleLastSample, training, 
-          diagonalizationMethod, diagonalizationWithFullConfusionMatrix, goldInstancesForDiagonalization, trainingData, 
-          lambda, algRnd);
+      labeler = new MultiAnnDatasetLabeler(
+    		  MultiAnnModelBuilders.initModelBuilder(multiannModelBuilder, 
+    				  priors, trainingData, yInitializer, mInitializer, algRnd),
+    		  debugOut, predictSingleLastSample, training, 
+	          diagonalizationMethod, diagonalizationWithFullConfusionMatrix, goldInstancesForDiagonalization, trainingData, 
+	          lambda, algRnd);
       
     }
     
@@ -923,7 +957,6 @@ public class CrowdsourcingLearningCurve {
         settingsComputer.compute(
             (stopwatchData==null)? 0: (int)stopwatchData.elapsed(TimeUnit.SECONDS),
             (int)stopwatchInference.elapsed(TimeUnit.SECONDS),
-            chains==null? 0: chains.length,
             priors)
         ));
     resultsOut.flush();
@@ -936,31 +969,26 @@ public class CrowdsourcingLearningCurve {
     logAccuracy("", accResults);
     logAccuracy("top3", acc3Results);
 
-    SerializableCrowdsourcingModel modelState = SerializableCrowdsourcingModel.of(labeler.);
-    
+    SerializableCrowdsourcingState modelState = SerializableCrowdsourcingState.of(predictions);
     // hyperparam optimization is based on this result
     if (returnLabeledAccuracy){
-    	return accResults.getLabeledAccuracy().getAccuracy(); // labeled accuracy (of interest but very noisy/jumpy)
+    	// labeled accuracy (of interest but very noisy/jumpy)
+    	modelState.setGoodness(accResults.getLabeledAccuracy().getAccuracy());
     }
     else{
-    	return jointResults; // smooth (but not necessarily what we are most interested in)
+    	// smooth (but not necessarily what we are most interested in)
+    	modelState.setGoodness(jointResults);
     }
+    return modelState;
   }
 
   
-  private static DatasetLabeler newCsldaModel(Dataset trainingData, PriorSpecification priors, int numTopics, int[][][] chains, PrintWriter serializeOut, RandomGenerator algRnd) {
-    MatrixAssignmentInitializer zInitializer; 
-    if (chains!=null){
-      zInitializer = ModelInitialization.maxMarginalMatrixInitializer(chains, numTopics);
-    }
-    else{
-      zInitializer = ModelInitialization.uniformRowMatrixInitializer(new ModelInitialization.UniformAssignmentInitializer(numTopics, algRnd));
-    }
-    AssignmentInitializer yInitializer = new ModelInitialization.BaselineInitializer(algRnd);
-    return new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, 
-        zInitializer, yInitializer, priors, serializeOut, algRnd);
+  private static DatasetLabeler newCsldaModel(Dataset trainingData, PriorSpecification priors, int numTopics, 
+		  AssignmentInitializer yInitializer, MatrixAssignmentInitializer zInitializer, RandomGenerator algRnd) {
+   
+	return new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, 
+        zInitializer, yInitializer, priors, algRnd);
   }
-
 
 
 
@@ -977,18 +1005,6 @@ public class CrowdsourcingLearningCurve {
       Dataset truncated = Datasets.removeDataWithoutAnnotationsOrObservedLabels(data); 
       logger.info("data size: before truncation="+data.getInfo().getNumDocuments()+" after truncation="+truncated.getInfo().getNumDocuments());
       return truncated;
-  }
-
-  private static MultiAnnModelBuilder initMultiannModelBuilder(MultiAnnModelBuilder builder, 
-                              RandomGenerator algRnd, Dataset trainingData, PriorSpecification priors,
-                              int[][][] chains) {
-//  ModelBuilder builder = BlockCollapsedMultiAnnModel.newModelBuilderWithUniform(priors, trainingData, rnd);
-    if (chains!=null && chains.length>0){
-      return MultiAnnModelBuilders.initModelBuilderWithSerializedChains(builder, priors, trainingData, chains, algRnd);
-    }
-    else{
-      return MultiAnnModelBuilders.initModelBuilderWithBaselineInit(builder, priors, trainingData, algRnd);
-    }
   }
 
 
@@ -1150,7 +1166,8 @@ public class CrowdsourcingLearningCurve {
           "pre_normalize_documents",
           "data_secs",
           "inference_secs",
-          "initialization_chains",
+          "initializationStrategy",
+          "initializationTraining",
           "diagonalization_method",
           "diagonalization_gold_instances",
           "btheta",
@@ -1167,7 +1184,7 @@ public class CrowdsourcingLearningCurve {
           "inline_hyperparam_tuning",
           });
     }
-    public String compute(int dataSecs, int inferenceSecs, int initializationChains, PriorSpecification priors) {
+    public String compute(int dataSecs, int inferenceSecs, PriorSpecification priors) {
       return Joiner.on(',').join(new String[]{
           ""+k,
           ""+labelingStrategy,
@@ -1182,7 +1199,8 @@ public class CrowdsourcingLearningCurve {
           ""+featureNormalizationConstant,
           ""+dataSecs,
           ""+inferenceSecs,
-          ""+initializationChains,
+          ""+initializationStrategy,
+          ""+initializationTraining,
           diagonalizationMethod.toString(),
           ""+goldInstancesForDiagonalization,
           priors==null? "": ""+priors.getBTheta(),
