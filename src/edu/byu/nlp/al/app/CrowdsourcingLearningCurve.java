@@ -423,6 +423,9 @@ public class CrowdsourcingLearningCurve {
     if (annotationStrategy!=AnnotationStrategy.real){
       fullData = Datasets.withNewAnnotators(fullData, annotatorAccuracy.getAnnotatorIdIndexer());
     }
+    if (annotationStrategy==AnnotationStrategy.kdeep){
+      Preconditions.checkState(annotatorAccuracy.getNumAnnotators()>=k, "Not enough simulated annotators ("+annotatorAccuracy.getNumAnnotators()+") to implement kdeep="+k+" (remember kdeep samples annotators WITHOUT replacement)");
+    }
     
     // split into training, validation, test
     // strategy: split the labeled portion of the dataset into train/validate/test
@@ -1166,8 +1169,8 @@ public class CrowdsourcingLearningCurve {
           "pre_normalize_documents",
           "data_secs",
           "inference_secs",
-          "initializationStrategy",
-          "initializationTraining",
+          "initialization_strategy",
+          "initialization_training",
           "diagonalization_method",
           "diagonalization_gold_instances",
           "btheta",
