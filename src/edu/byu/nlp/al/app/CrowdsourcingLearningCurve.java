@@ -145,7 +145,7 @@ public class CrowdsourcingLearningCurve {
   private static String hyperparamTraining = "none";
   
   @Option(help="Should we perform inline hyperparameter tuning?")
-  private static boolean inlineHyperparamTuning = true;
+  private static boolean inlineHyperparamTuning = false;
   
   private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB}
   
