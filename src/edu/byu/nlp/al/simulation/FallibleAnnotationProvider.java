@@ -21,7 +21,7 @@ import edu.byu.nlp.crowdsourcing.LabelProvider;
 import edu.byu.nlp.data.types.SparseFeatureVector;
 
 /**
- * Provides annotation as if from a fallible annotator.
+ * Provides annotation as if from a fallible (albeit tireless) annotator.
  * 
  * @author rah67
  *

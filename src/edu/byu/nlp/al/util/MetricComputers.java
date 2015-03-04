@@ -27,8 +27,10 @@ import edu.byu.nlp.classify.eval.Prediction;
 import edu.byu.nlp.classify.eval.Predictions;
 import edu.byu.nlp.data.types.Dataset;
 import edu.byu.nlp.data.types.DatasetInstance;
+import edu.byu.nlp.dataset.Datasets;
 import edu.byu.nlp.math.AbstractRealMatrixPreservingVisitor;
 import edu.byu.nlp.util.DoubleArrays;
+import edu.byu.nlp.util.IntArrays;
 
 /**
  * @author pfelt
@@ -165,6 +167,10 @@ public class MetricComputers {
 
   public static class PredictionTabulator {
     public static void writeTo(Predictions predictions, PrintWriter writer) {
+      Preconditions.checkNotNull(predictions);
+      Preconditions.checkNotNull(predictions.annotatorConfusionMatrices());
+      int numAnnotators = predictions.annotatorConfusionMatrices().length;
+      int numLabels = predictions.annotatorConfusionMatrices()[0].length;
       // pre-compute largest number of annotations in dataset
       int maxAnnotations = 0;
       for (Prediction pred : predictions.allPredictions()) {
@@ -176,6 +182,9 @@ public class MetricComputers {
       List<String> annHeader = Lists.newArrayList();
       for (int a = 0; a < maxAnnotations; a++) {
         annHeader.add("" + a);
+      }
+      for (int j = 0; j < numAnnotators; j++) {
+        annHeader.add("annotator_" + j);
       }
       writer.println(Joiner.on(',').join(
           Lists.newArrayList("gold", "pred", Joiner.on(',').join(annHeader),
@@ -193,6 +202,11 @@ public class MetricComputers {
         });
         while (annotations.size() < maxAnnotations) {
           annotations.add("");
+        }
+        // num annotations per annotator
+        int[][] anns = Datasets.compileDenseAnnotations(pred.getInstance(), numLabels, numAnnotators);
+        for (int j = 0; j < numAnnotators; j++) {
+          annotations.add(""+IntArrays.sum(anns[j]));
         }
         List<?> parts = Lists.newArrayList(
             (pred.getInstance().getLabel() != null)? pred.getInstance().getLabel(): "", // gold

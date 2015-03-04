@@ -19,6 +19,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -39,6 +40,7 @@ import com.google.common.base.Predicates;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 
@@ -50,6 +52,7 @@ import edu.byu.nlp.al.EmpiricalAnnotationInstanceManager;
 import edu.byu.nlp.al.GeneralizedRoundRobinInstanceManager;
 import edu.byu.nlp.al.InstanceManager;
 import edu.byu.nlp.al.NDeepInstanceManager;
+import edu.byu.nlp.al.RateLimitedAnnotatorInstanceManager;
 import edu.byu.nlp.al.simulation.FallibleAnnotationProvider;
 import edu.byu.nlp.al.simulation.GoldLabelProvider;
 import edu.byu.nlp.al.util.MetricComputers.AnnotatorAccuracyComputer;
@@ -741,6 +744,8 @@ public class CrowdsourcingLearningCurve {
     default:
         throw new IllegalArgumentException("Unknown annotation strategy: " + annotationStrategy.name());
     }
+    // rate limited annotators
+    instanceManager = new RateLimitedAnnotatorInstanceManager<>(instanceManager, identityAnnotatorRatesMap(annotatorAccuracy.getAnnotatorRates()), dataRnd);
 
 
     /////////////////////////////////////////////////////////////////////
@@ -986,6 +991,7 @@ public class CrowdsourcingLearningCurve {
   }
 
   
+
   private static DatasetLabeler newCsldaModel(Dataset trainingData, PriorSpecification priors, int numTopics, 
 		  AssignmentInitializer yInitializer, MatrixAssignmentInitializer zInitializer, RandomGenerator algRnd) {
    
@@ -1025,11 +1031,16 @@ public class CrowdsourcingLearningCurve {
                                                                                     RandomGenerator rnd) {
     GoldLabelProvider<SparseFeatureVector,Integer> goldLabelProvider = GoldLabelProvider.from(concealedLabeledTrainingData);
     List<FallibleAnnotationProvider<SparseFeatureVector,Integer>> annotators = Lists.newArrayList();
-    for (double[][] confusionMatrix : accuracySetting.getConfusionMatrices()) {
+    double[][][] annotatorConfusions = accuracySetting.getConfusionMatrices();
+    double[] annotatorRates = accuracySetting.getAnnotatorRates();
+    // scale annotator rates up until the first one hits 1 (won't change proportions but will decrease failure rate)
+    DoubleArrays.multiplyToSelf(annotatorRates, 1.0/DoubleArrays.max(annotatorRates));
+    
+    for (int j=0; j<annotatorConfusions.length; j++) {
       ProbabilisticLabelErrorFunction<Integer> labelErrorFunction = 
-          new ProbabilisticLabelErrorFunction<Integer>(new ConfusionMatrixDistribution(confusionMatrix),rnd);
+          new ProbabilisticLabelErrorFunction<Integer>(new ConfusionMatrixDistribution(annotatorConfusions[j]),rnd);
       FallibleAnnotationProvider<SparseFeatureVector,Integer> annotator = 
-          FallibleAnnotationProvider.from(goldLabelProvider, labelErrorFunction);
+          new FallibleAnnotationProvider<SparseFeatureVector, Integer>(goldLabelProvider, labelErrorFunction);
       annotators.add(annotator);
     }
     return annotators;
@@ -1269,6 +1280,13 @@ public class CrowdsourcingLearningCurve {
       return "machacc_mat_rmse";
     }
   }
-  
+
+  private static Map<Long,Double> identityAnnotatorRatesMap(double[] annotatorRates) {
+    Map<Long,Double> rates = Maps.newHashMap();
+    for (int j=0; j<annotatorRates.length; j++){
+      rates.put((long)j, annotatorRates[j]);
+    }
+    return rates;
+  }
   
 }
