@@ -146,9 +146,12 @@ public class CrowdsourcingLearningCurve {
 
   @Option(help="what kind of hyperparameter optimization to do. In the form maximize-[varname]-[type]-[maxiterations]. type in HyperparamOpt. Default is NONE.")
   private static String hyperparamTraining = "none";
-  
+
   @Option(help="Should we perform inline hyperparameter tuning?")
   private static boolean inlineHyperparamTuning = false;
+
+  @Option(help="Should we simulate annotators with varying rates?")
+  private static boolean varyAnnotatorRates = false;
   
   private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB}
   
@@ -422,7 +425,7 @@ public class CrowdsourcingLearningCurve {
     // ensure the dataset knows about all the annotators it will need to deal with.
     // if we are dealing with real data, we read in annotators with the data. Otherwise, 
     // we'll have to change it. 
-    annotatorAccuracy.generateConfusionMatrices(dataRnd, fullData.getInfo().getNumClasses(), annotatorFile);
+    annotatorAccuracy.generateConfusionMatrices(dataRnd, varyAnnotatorRates, fullData.getInfo().getNumClasses(), annotatorFile);
     if (annotationStrategy!=AnnotationStrategy.real){
       fullData = Datasets.withNewAnnotators(fullData, annotatorAccuracy.getAnnotatorIdIndexer());
     }
@@ -745,7 +748,9 @@ public class CrowdsourcingLearningCurve {
         throw new IllegalArgumentException("Unknown annotation strategy: " + annotationStrategy.name());
     }
     // rate limited annotators
-    instanceManager = new RateLimitedAnnotatorInstanceManager<>(instanceManager, identityAnnotatorRatesMap(annotatorAccuracy.getAnnotatorRates()), dataRnd);
+    if (annotatorAccuracy!=null){
+    	instanceManager = new RateLimitedAnnotatorInstanceManager<>(instanceManager, identityAnnotatorRatesMap(annotatorAccuracy.getAnnotatorRates()), dataRnd);
+    }
 
 
     /////////////////////////////////////////////////////////////////////
@@ -1196,6 +1201,7 @@ public class CrowdsourcingLearningCurve {
           "num_topics",
           "annotator_cluster_method",
           "inline_hyperparam_tuning",
+          "vary_annotator_rates",
           });
     }
     public String compute(int dataSecs, int inferenceSecs, PriorSpecification priors) {
@@ -1229,6 +1235,7 @@ public class CrowdsourcingLearningCurve {
           ""+numTopics,
           ""+clusterMethod,
           ""+inlineHyperparamTuning,
+          ""+varyAnnotatorRates,
         });
     }
   }
