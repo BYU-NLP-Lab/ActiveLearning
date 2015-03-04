@@ -8,7 +8,7 @@
 		<relativePath>../byunlp-maven-base</relativePath>
 	</parent>
 	<artifactId>statnlp-activelearning</artifactId>
-	<version>1.0</version>
+	<version>1.1-SNAPSHOT</version>
 	<name>BYU NLP Active Learning Library</name>
 	<build>
 		<sourceDirectory>src</sourceDirectory>
@@ -97,33 +97,33 @@
 		</dependency>
 		<dependency>
 			<groupId>edu.byu.nlp</groupId>
+			<artifactId>annotationinterface</artifactId>
+			<version>1.0</version>
+		</dependency>
+		<dependency>
+			<groupId>edu.byu.nlp</groupId>
 			<artifactId>jargparser</artifactId>
 			<version>0.3</version>
 		</dependency>
 		<dependency>
 			<groupId>edu.byu.nlp</groupId>
 			<artifactId>commons</artifactId>
-			<version>1.0</version>
+			<version>1.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>edu.byu.nlp</groupId>
 			<artifactId>dataset-utils</artifactId>
-			<version>1.0</version>
-		</dependency>
-		<dependency>
-			<groupId>edu.byu.nlp</groupId>
-			<artifactId>annotationinterface</artifactId>
-			<version>1.0</version>
+			<version>1.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>edu.byu.nlp</groupId>
 			<artifactId>statnlp-classification</artifactId>
-			<version>1.0</version>
+			<version>1.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>edu.byu.nlp</groupId>
 			<artifactId>statnlp-crowdsourcing</artifactId>
-			<version>1.0</version>
+			<version>1.1-SNAPSHOT</version>
 		</dependency>
 	</dependencies>
 </project>
