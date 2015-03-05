@@ -53,6 +53,7 @@ import edu.byu.nlp.al.GeneralizedRoundRobinInstanceManager;
 import edu.byu.nlp.al.InstanceManager;
 import edu.byu.nlp.al.NDeepInstanceManager;
 import edu.byu.nlp.al.RateLimitedAnnotatorInstanceManager;
+import edu.byu.nlp.al.simulation.DelegatingKUniqueMultiLabeler;
 import edu.byu.nlp.al.simulation.FallibleAnnotationProvider;
 import edu.byu.nlp.al.simulation.GoldLabelProvider;
 import edu.byu.nlp.al.util.MetricComputers.AnnotatorAccuracyComputer;
@@ -279,6 +280,9 @@ public class CrowdsourcingLearningCurve {
   
   
   /* -------------  Instance Selection Methods  ------------------- */
+
+  @Option(help = "Specifies a number of options that a single anntotator gets to annotate at once (no repeats)")
+  private static int annotateTopKChoices = 1; 
   
   @Option(optStrings={"-k","--num-anns-per-instance"})
   private static int k = 1; // Used by grr/ab
@@ -358,6 +362,8 @@ public class CrowdsourcingLearningCurve {
     // parse CLI arguments
     ArgumentValues opts = new ArgumentParser(CrowdsourcingLearningCurve.class).parseArgs(args);
 
+    Preconditions.checkArgument(annotateTopKChoices>0, "--annotate-top-k-choices must be greater than 0");
+    
     // this generator deals with data creation (so that all runs with the same annotation strategy
     // settings get the same datasets, regardless of the algorithm run on them)
     RandomGenerator dataRnd = new MersenneTwister(dataSeed);
@@ -404,7 +410,8 @@ public class CrowdsourcingLearningCurve {
     // currently cslda can't handle fractional word counts
     featureNormalizationConstant = labelingStrategy==LabelingStrategy.cslda? -1: featureNormalizationConstant;
     Dataset fullData = readData(dataRnd,featureNormalizationConstant);
-    
+
+    Preconditions.checkArgument(annotateTopKChoices<=fullData.getInfo().getNumClasses(), "--annotate-top-k-choices must not be greater than the number of classes");
     // transform the annotations (if requested) via annotation clustering
     if (numAnnotatorClusters>0){
       double parameterSmoothing = 0.01;
@@ -785,10 +792,12 @@ public class CrowdsourcingLearningCurve {
       // Annotate (ignore timing information)
       else {
         LabelProvider<SparseFeatureVector, Integer> annotator = annotators.get((int)request.getAnnotatorId());
-        Integer label = annotator.labelFor(request.getInstance().getSource(), request.getInstance().getData());
-        AnnotationInfo<Integer> ai = new AnnotationInfo<Integer>(new Long(numAnnotations), label, TimedEvent.Zeros(), TimedEvent.Zeros());
-        request.storeAnnotation(ai);
-        writeAnnotation(annotationsOut, ai, request);
+        Iterable<Integer> labels = DelegatingKUniqueMultiLabeler.of(annotator, annotateTopKChoices).labelFor(request.getInstance().getSource(), request.getInstance().getData());
+        for (Integer label: labels){
+          AnnotationInfo<Integer> ai = new AnnotationInfo<Integer>(new Long(numAnnotations), label, TimedEvent.Zeros(), TimedEvent.Zeros());
+          request.storeAnnotation(ai);
+          writeAnnotation(annotationsOut, ai, request);
+        }
       }
     } // end annotate
 
