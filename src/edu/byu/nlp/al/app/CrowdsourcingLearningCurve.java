@@ -1210,6 +1210,7 @@ public class CrowdsourcingLearningCurve {
           "num_topics",
           "annotator_cluster_method",
           "inline_hyperparam_tuning",
+          "annotate_top_k_choices",
           "vary_annotator_rates",
           });
     }
@@ -1244,6 +1245,7 @@ public class CrowdsourcingLearningCurve {
           ""+numTopics,
           ""+clusterMethod,
           ""+inlineHyperparamTuning,
+          ""+annotateTopKChoices,
           ""+varyAnnotatorRates,
         });
     }
