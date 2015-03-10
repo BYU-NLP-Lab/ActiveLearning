@@ -694,7 +694,7 @@ public class CrowdsourcingLearningCurve {
     logger.info("hyperparameters: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
     
     
-    // data with known and observed labels is suitable for adding as extra supervision to models (TODO)
+    // TODO; handle data with known and observed labels is suitable for adding as extra supervision to models 
     Dataset observedLabelsTrainingData = Datasets.divideInstancesWithObservedLabels(trainingData).getFirst();
     // data with known but concealed labels is suitable for simulating annotators and doing evaluation 
     Dataset concealedLabelsTrainingData = Datasets.divideInstancesWithLabels(trainingData).getFirst();

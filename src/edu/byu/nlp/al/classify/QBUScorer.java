@@ -81,7 +81,7 @@ public class QBUScorer implements Scorer {
     public Score score(FlatInstance instance) {
 //      CategoricalDistribution dist = condDist.given(instance.asFeatureVector());
 //      return new Score(uncertaintyCalculator.uncertaintyOf(dist), age);
-      // FIXME (pfelt): see not in LabelUncertaintyScorer
+      // FIXME (pfelt): see note in LabelUncertaintyScorer
       return null;
     }
 }

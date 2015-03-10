@@ -136,7 +136,7 @@ public class QBCScorer implements Scorer {
 //          }
 //      }
 //      return new Score(calc.disagreementOf(labelDists), age);
-      // FIXME (pfelt): see not in LabelUncertaintyScorer
+      // FIXME (pfelt): see note in LabelUncertaintyScorer
       return null;
     }
 }
