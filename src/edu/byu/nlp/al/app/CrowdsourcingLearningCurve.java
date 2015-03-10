@@ -732,22 +732,22 @@ public class CrowdsourcingLearningCurve {
     // code ignores annotations, but it's worth noting.
     /////////////////////////////////////////////////////////////////////
     InstanceManager<SparseFeatureVector, Integer> instanceManager;
-    LabelChooser chooser;
+    LabelChooser baselineChooser;
     switch(annotationStrategy){
     case ab:
-      chooser = new ArbiterVote(arbiters, algRnd);
+      baselineChooser = new ArbiterVote(arbiters, algRnd);
       instanceManager = ABArbiterInstanceManager.newManager(trainingData, k==1, arbiters);
       break;
     case grr:
-      chooser = new MajorityVote(algRnd);
+      baselineChooser = new MajorityVote(algRnd);
       instanceManager = GeneralizedRoundRobinInstanceManager.newManager(k, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
       break;
     case kdeep:
-      chooser = new MajorityVote(algRnd);
+      baselineChooser = new MajorityVote(algRnd);
       instanceManager = NDeepInstanceManager.newManager(k, 1, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
       break;
     case real:
-      chooser = new MajorityVote(algRnd);
+      baselineChooser = new MajorityVote(algRnd);
       Dataset instances = onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData;
       instanceManager = EmpiricalAnnotationInstanceManager.newManager(k, instances, annotations, dataRnd);
       break;
@@ -825,10 +825,6 @@ public class CrowdsourcingLearningCurve {
     MatrixAssignmentInitializer zInitializer = ModelInitialization.backoffStateInitializerForZ(initialState, 
     		ModelInitialization.uniformRowMatrixInitializer(new ModelInitialization.UniformAssignmentInitializer(numTopics, algRnd))); 
     
-    // this builder uses the chooser to arbitrate the labeled portion of the dataset
-    // for the baseline approaches
-    DatasetBuilder datasetBuilder = new DatasetBuilder(chooser);
-
     PriorSpecification priors = new PriorSpecification(bTheta, bMu, cMu, bGamma, cGamma, bPhi, etaVariance, inlineHyperparamTuning, annotators.size());
     switch(labelingStrategy){
 
@@ -849,13 +845,13 @@ public class CrowdsourcingLearningCurve {
     case ubaseline:
       // this labeler reports labeled data without alteration, and trains an uncertainty-
       // preserving naive bayes variant on it to label the unlabeled and test portions
-      labeler = new SingleLabelLabeler(new UncertaintyPreservingNaiveBayesLearner(), datasetBuilder, annotators.size());
+      labeler = new SingleLabelLabeler(new UncertaintyPreservingNaiveBayesLearner(), new DatasetBuilder(baselineChooser), annotators.size());
       break;
       
     case baseline:
       // this labeler reports labeled data without alteration, and trains a naive bayes 
       // on it to label the unlabeled and test portions
-      labeler = new SingleLabelLabeler(new NaiveBayesLearner(), datasetBuilder, annotators.size());
+      labeler = new SingleLabelLabeler(new NaiveBayesLearner(), new DatasetBuilder(baselineChooser), annotators.size());
       break;
 
     case raykar:
