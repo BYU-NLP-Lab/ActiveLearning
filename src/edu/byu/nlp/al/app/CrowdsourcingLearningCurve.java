@@ -199,8 +199,7 @@ public class CrowdsourcingLearningCurve {
   private static long algorithmSeed = System.nanoTime();
 
   @Option(help = "If true, eliminates unannotated data from the dataset before running"
-      + "inference of any kind. (This is untested if you are trying to run for more "
-      + "than a single evalpoint, although it will probably work).")
+      + "inference of any kind.")
   private static boolean truncateUnannotatedData = false;
   
 //  @Option (help = "Has no no effect on baselines. " 
