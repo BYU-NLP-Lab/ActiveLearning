@@ -154,7 +154,7 @@ public class CrowdsourcingLearningCurve {
   @Option(help="Should we simulate annotators with varying rates?")
   private static boolean varyAnnotatorRates = false;
   
-  private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB}
+  private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB, WEATHER, AIRLINES, COMPANIES}
   
   @Option(help = "base directory of the documents")
   private static DatasetType datasetType = DatasetType.NEWSGROUPS;
@@ -1072,7 +1072,13 @@ public class CrowdsourcingLearningCurve {
     case WEBKB:
     case NG:
       break;
+    // Web Pages
+    case COMPANIES:
+      // TODO: determine what to do
+      break;
     // tweets
+    case WEATHER:
+    case AIRLINES:
     case DREDZE:
       // order of ops is from bottom up
       tokenTransform = Functions.compose( 
@@ -1104,6 +1110,9 @@ public class CrowdsourcingLearningCurve {
     switch(datasetType){
     // json annotation stream
     case CFGROUPS1000:
+    case WEATHER:
+    case AIRLINES:
+    case COMPANIES:
     case DREDZE:
       data = new JSONDocumentDatasetBuilder(basedir, dataset, 
           docTransform, TokenizerPipes.McCallumAndNigam(), tokenTransform, 
