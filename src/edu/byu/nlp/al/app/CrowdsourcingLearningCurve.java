@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 import com.google.common.base.Function;
-import com.google.common.base.Functions;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
@@ -111,8 +110,10 @@ import edu.byu.nlp.data.docs.JSONDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.TokenizerPipes;
 import edu.byu.nlp.data.docs.TopNPerDocumentFeatureSelectorFactory;
 import edu.byu.nlp.data.pipes.EmailHeaderStripper;
+import edu.byu.nlp.data.pipes.EmoticonTransformer;
 import edu.byu.nlp.data.pipes.PorterStemmer;
 import edu.byu.nlp.data.pipes.ShortWordFilter;
+import edu.byu.nlp.data.pipes.StopWordRemover;
 import edu.byu.nlp.data.types.Dataset;
 import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
@@ -122,6 +123,7 @@ import edu.byu.nlp.math.optimize.MultivariateOptimizers;
 import edu.byu.nlp.math.optimize.MultivariateOptimizers.OptimizationMethod;
 import edu.byu.nlp.util.Arrays;
 import edu.byu.nlp.util.DoubleArrays;
+import edu.byu.nlp.util.Functions2;
 import edu.byu.nlp.util.Indexer;
 import edu.byu.nlp.util.Matrices;
 import edu.byu.nlp.util.Pair;
@@ -416,14 +418,8 @@ public class CrowdsourcingLearningCurve {
       double parameterSmoothing = 0.01;
       fullData = Datasets.withClusteredAnnotators(fullData, numAnnotatorClusters, clusterMethod, parameterSmoothing, dataRnd);
     }
-    logger.info("Dataset after annotator clustering: Number of labeled instances = " + fullData.getInfo().getNumDocumentsWithObservedLabels());
-    logger.info("Dataset after annotator clustering: Number of unlabeled instances = " + fullData.getInfo().getNumDocumentsWithoutObservedLabels());
-    logger.info("Dataset after annotator clustering: Number of tokens = " + fullData.getInfo().getNumTokens());
-    logger.info("Dataset after annotator clustering: Number of features = " + fullData.getInfo().getNumFeatures());
-    logger.info("Dataset after annotator clustering: Number of classes = " + fullData.getInfo().getNumClasses());
-    logger.info("Dataset after annotator clustering: Average document size = " + (fullData.getInfo().getNumTokens()/fullData.getInfo().getNumDocuments()));
-    logger.info("Dataset after annotator clustering: Number of annotators = " + fullData.getInfo().getNumAnnotators());
-
+    
+    logger.info("\nDataset after annotator clustering: \n"+Datasets.summaryOf(fullData,1));
 
     // Save annotations for future use (if we're using an empirical annotation strategy)
     final EmpiricalAnnotations<SparseFeatureVector, Integer> annotations = EmpiricalAnnotations.fromDataset(fullData);
@@ -1077,13 +1073,22 @@ public class CrowdsourcingLearningCurve {
       // TODO: determine what to do
       break;
     // tweets
-    case WEATHER:
     case AIRLINES:
     case DREDZE:
+      // preserved some tweeted emoticons as text
+      docTransform = new EmoticonTransformer();
       // order of ops is from bottom up
-      tokenTransform = Functions.compose( 
-          new ShortWordFilter(2),
-          new PorterStemmer()
+      tokenTransform = Functions2.compose( 
+          new ShortWordFilter(1),
+          new PorterStemmer(),
+          StopWordRemover.twitterStopWordRemover()
+          );
+    case WEATHER:
+      tokenTransform = Functions2.compose( 
+          new ShortWordFilter(1),
+          new PorterStemmer(),
+          StopWordRemover.twitterStopWordRemover(),
+          StopWordRemover.fromWords(Sets.newHashSet("weather"))
           );
       break;
     // email 
@@ -1093,9 +1098,10 @@ public class CrowdsourcingLearningCurve {
     case REUTERS:
       docTransform = new EmailHeaderStripper();
       // order of ops is from bottom up
-      tokenTransform = Functions.compose(
+      tokenTransform = Functions2.compose(
           new ShortWordFilter(2),
-          new PorterStemmer()
+          new PorterStemmer(),
+          StopWordRemover.malletStopWordRemover()
           );
       break;
     default:
@@ -1149,14 +1155,8 @@ public class CrowdsourcingLearningCurve {
     
     // Postprocessing: remove all documents with duplicate sources or empty features
     data = Datasets.filteredDataset(data, Predicates.and(Datasets.filterDuplicateSources(), Datasets.filterNonEmpty()));
-    
-    logger.info("Dataset on import: Number of labeled instances = " + data.getInfo().getNumDocumentsWithObservedLabels());
-    logger.info("Dataset on import: Number of unlabeled instances = " + data.getInfo().getNumDocumentsWithoutObservedLabels());
-    logger.info("Dataset on import: Number of tokens = " + data.getInfo().getNumTokens());
-    logger.info("Dataset on import: Number of features = " + data.getInfo().getNumFeatures());
-    logger.info("Dataset on import: Number of classes = " + data.getInfo().getNumClasses());
-    logger.info("Dataset on import: Average document sze = " + (data.getInfo().getNumTokens()/data.getInfo().getNumDocuments()));
-    logger.info("Dataset on import: Number of annotators = " + data.getInfo().getNumAnnotators());
+
+    logger.info("\nDataset on import: \n"+Datasets.summaryOf(data,1));
 
 //    for (DatasetInstance inst: data){
 //      Preconditions.checkState(inst.asFeatureVector().sum()>0,"document "+inst.getInfo().getSource()+" was empty");
