@@ -665,8 +665,12 @@ public class CrowdsourcingLearningCurve {
     /////////////////////////////////////////////////////////////////////
     // Prepare data. 
     /////////////////////////////////////////////////////////////////////
-    // remove any existing annotations; this is only relevant if doing multiple evaluations in a single run
+    // remove any existing annotations from the training data; this is only relevant if doing multiple evaluations in a single run
     Datasets.clearAnnotations(trainingData);
+    // remove annotations from the "extra" data. We could actually make use of these without cheating (they might 
+    // be annotations on the test or validation portion of the data), but we don't just because they cause
+    // learning curves to begin at higher than expected numbers.
+    Datasets.clearAnnotations(extraUnlabeledData);
     // most or all ground-truth labels are hidden for crowdsourcing inference 
     if (annotationStrategy!=AnnotationStrategy.real){
       trainingData = Datasets.hideAllLabelsButNPerClass(trainingData, numObservedLabelsPerClass, dataRnd);
@@ -681,13 +685,10 @@ public class CrowdsourcingLearningCurve {
     logger.info("======================================================================================");
     logger.info("data seed "+dataSeed);
     logger.info("algorithm seed "+algorithmSeed);
-    logger.info("data size: training labeled "+trainingData.getInfo().getNumDocumentsWithLabels());
-    logger.info("data size: training unlabeled "+trainingData.getInfo().getNumDocumentsWithoutLabels());
-    logger.info("data size: extra unlabeled "+extraUnlabeledData.getInfo().getNumDocuments());
-    logger.info("data size: test labeled "+testData.getInfo().getNumDocumentsWithLabels());
-    logger.info("data size: test unlabeled "+testData.getInfo().getNumDocumentsWithoutLabels());
     logger.info("hyperparameters: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
-    
+    logger.info("\ntraining data: \n"+Datasets.summaryOf(trainingData,1));
+    logger.info("\nextra training data: \n"+Datasets.summaryOf(extraUnlabeledData,1));
+    logger.info("\ntest data: \n"+Datasets.summaryOf(testData,1));
     
     // TODO; handle data with known and observed labels is suitable for adding as extra supervision to models 
     Dataset observedLabelsTrainingData = Datasets.divideInstancesWithObservedLabels(trainingData).getFirst();
