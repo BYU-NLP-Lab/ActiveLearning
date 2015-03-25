@@ -449,17 +449,17 @@ public class CrowdsourcingLearningCurve {
     final Dataset validationData = annotatedDatasetSplits.get(1);
     final Dataset testData = annotatedDatasetSplits.get(2); // note: we could ensure we don't waste any observed labels here, but it's not critical
     
-    logger.info("training data labeled "+trainingData.getInfo().getNumDocumentsWithLabels());
-    logger.info("training data unlabeled "+trainingData.getInfo().getNumDocumentsWithoutLabels());
-    logger.info("test data labeled "+testData.getInfo().getNumDocumentsWithLabels());
+    logger.info("\nunlabeled data split: \n"+Datasets.summaryOf(unlabeledDataset,1));
+    logger.info("\ntraining data split: \n"+Datasets.summaryOf(trainingData,1));
+    logger.info("\ntest data split: \n"+Datasets.summaryOf(testData,1));
+    logger.info("\nvalidation data split: \n"+Datasets.summaryOf(validationData,1));
     Preconditions.checkState(testData.getInfo().getNumDocumentsWithoutLabels()==0,"test data must all have labels");
-    logger.info("validation data labeled "+validationData.getInfo().getNumDocumentsWithLabels());
-    logger.info("validation data unlabeled "+unlabeledDataset.getInfo().getNumDocumentsWithoutLabels());
 
     stopwatchData.stop();
     
     boolean returnLabeledAccuracy = true;
-    Dataset extraUnlabeledData = Datasets.join(Datasets.hideAllLabelsButNPerClass(validationData, 0, null), unlabeledDataset); // make sure "extra" data is unlabeled
+    // make sure "extra" data is unlabeled 
+    Dataset extraUnlabeledData = Datasets.join(Datasets.hideAllLabelsButNPerClass(validationData, 0, null), unlabeledDataset); 
 
     // initialize model variables
     SerializableCrowdsourcingState initialization = trainEval(nullWriter(), nullWriter(), nullWriter(), nullWriter(),
@@ -667,9 +667,9 @@ public class CrowdsourcingLearningCurve {
     /////////////////////////////////////////////////////////////////////
     // remove any existing annotations from the training data; this is only relevant if doing multiple evaluations in a single run
     Datasets.clearAnnotations(trainingData);
-    // remove annotations from the "extra" data. We could actually make use of these without cheating (they might 
+    // (We could actually make use of "extra" annotations without technically cheating (they might 
     // be annotations on the test or validation portion of the data), but we don't just because they cause
-    // learning curves to begin at higher than expected numbers.
+    // learning curves to begin at higher than expected numbers and are confusing.
     Datasets.clearAnnotations(extraUnlabeledData);
     // most or all ground-truth labels are hidden for crowdsourcing inference 
     if (annotationStrategy!=AnnotationStrategy.real){
