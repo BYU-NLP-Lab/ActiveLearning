@@ -16,7 +16,6 @@
 package edu.byu.nlp.al;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
@@ -59,7 +58,8 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
 	    }
 	  }
 	  // sort the annotation queue based on annotation order
-	  Collections.sort(queue);
+	  Datasets.sortAnnotations(queue);
+	  
 	  queue = Lists.newLinkedList(queue); // better queueing behavior
 	}
 	

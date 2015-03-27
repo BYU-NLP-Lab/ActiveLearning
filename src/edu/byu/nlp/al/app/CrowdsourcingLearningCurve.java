@@ -119,6 +119,8 @@ import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
 import edu.byu.nlp.dataset.Datasets;
 import edu.byu.nlp.dataset.Datasets.AnnotatorClusterMethod;
+import edu.byu.nlp.io.Files2;
+import edu.byu.nlp.io.Paths;
 import edu.byu.nlp.math.optimize.MultivariateOptimizers;
 import edu.byu.nlp.math.optimize.MultivariateOptimizers.OptimizationMethod;
 import edu.byu.nlp.util.Arrays;
@@ -435,36 +437,18 @@ public class CrowdsourcingLearningCurve {
       Preconditions.checkState(annotatorAccuracy.getNumAnnotators()>=k, "Not enough simulated annotators ("+annotatorAccuracy.getNumAnnotators()+") to implement kdeep="+k+" (remember kdeep samples annotators WITHOUT replacement)");
     }
     
-    // split into training, validation, test
-    // strategy: split the labeled portion of the dataset into train/validate/test
-    // and then append unlabeled instances back onto validation and train. 
-    Pair<? extends Dataset, ? extends Dataset> fullDataDivided = Datasets.divideInstancesWithLabels(fullData);
-    Dataset labeledDataset = fullDataDivided.getFirst();
-    Dataset unlabeledDataset = fullDataDivided.getSecond();
-    Preconditions.checkArgument(0<=trainingPercent && trainingPercent<=100,"trainingPercent must be between 0 and 100 (inclusive) "+trainingPercent);
-    Preconditions.checkArgument(0<=validationPercent && validationPercent<=100,"validationPercent must be between 0 and 100 (inclusive) "+validationPercent);
-    Preconditions.checkArgument(validationPercent+trainingPercent<=100,"trainingPercent+validationPercent must be between 0 and 100 (inclusive) "+trainingPercent+"+"+validationPercent);
-    List<Dataset> annotatedDatasetSplits = Datasets.split(labeledDataset,new double[]{trainingPercent,validationPercent,(100-(trainingPercent+validationPercent))});
-    final Dataset trainingData = annotatedDatasetSplits.get(0);
-    final Dataset validationData = annotatedDatasetSplits.get(1);
-    final Dataset testData = annotatedDatasetSplits.get(2); // note: we could ensure we don't waste any observed labels here, but it's not critical
-    
-    logger.info("\nunlabeled data split: \n"+Datasets.summaryOf(unlabeledDataset,1));
-    logger.info("\ntraining data split: \n"+Datasets.summaryOf(trainingData,1));
-    logger.info("\ntest data split: \n"+Datasets.summaryOf(testData,1));
-    logger.info("\nvalidation data split: \n"+Datasets.summaryOf(validationData,1));
-    Preconditions.checkState(testData.getInfo().getNumDocumentsWithoutLabels()==0,"test data must all have labels");
+    List<Dataset> dataSplits = splitData(fullData, trainingPercent, validationPercent, dataRnd);
+    final Dataset trainingData = dataSplits.get(0);
+    final Dataset validationData = dataSplits.get(1);
+    final Dataset testData = dataSplits.get(2); 
 
     stopwatchData.stop();
     
     boolean returnLabeledAccuracy = true;
-    // make sure "extra" data is unlabeled 
-    Dataset extraUnlabeledData = Datasets.join(Datasets.hideAllLabelsButNPerClass(validationData, 0, null), unlabeledDataset); 
-
     // initialize model variables
     SerializableCrowdsourcingState initialization = trainEval(nullWriter(), nullWriter(), nullWriter(), nullWriter(),
             null, dataRnd, algRnd, stopwatchData, 
-            trainingData, false, extraUnlabeledData, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
+            trainingData, false, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
             bTheta, bMu, bPhi, bGamma, cGamma, 
             lambda, evalPoint, initializationStrategy, initializationTraining, returnLabeledAccuracy);
     
@@ -472,16 +456,14 @@ public class CrowdsourcingLearningCurve {
     if (validationPercent>0){
     	MDC.put("context", "hyperopt");
     	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
-    	// pass training data in as extra (unannotated/unlabeled) data
-    	Dataset extra = Datasets.join(Datasets.hideAllLabelsButNPerClass(trainingData, 0, null), unlabeledDataset); // make sure "extra" data is unlabeled
-    	ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(initialization, validationData, extra, annotations, validationEvalPoint));
+    	ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(initialization, validationData, annotations, validationEvalPoint));
     	MDC.remove("context");
     }
 
     // final go
     SerializableCrowdsourcingState finalState = trainEval(debugOut, annotationsOut, tabularPredictionsOut, resultsOut,
         initialization, dataRnd, algRnd, stopwatchData, 
-        trainingData, false, extraUnlabeledData, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
+        trainingData, false, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
         bTheta, bMu, bPhi, bGamma, cGamma, 
         lambda, evalPoint, labelingStrategy, training, returnLabeledAccuracy);
     
@@ -498,7 +480,6 @@ public class CrowdsourcingLearningCurve {
   
   private static class CrowdsourcingHyperparameterOptimizer implements SupportsTrainingOperations{
 	private Dataset validationData;
-	private Dataset extraUnlabeledData;
 	private EmpiricalAnnotations<SparseFeatureVector, Integer> annotations;
 	private int validationEvalPoint;
 	private Set<Double> bThetaGrid = Sets.newHashSet(0.01, 0.1, 0.5, 1.0);
@@ -513,12 +494,10 @@ public class CrowdsourcingLearningCurve {
 	public CrowdsourcingHyperparameterOptimizer(
 		  SerializableCrowdsourcingState initialization, 
 	      Dataset validationData,
-	      Dataset extraData,
 	      EmpiricalAnnotations<SparseFeatureVector, Integer> annotations,
 	      int evalPoint){
 		  this.initialization=initialization;
 		  this.validationData=validationData;
-		  this.extraUnlabeledData=extraData;
 		  this.annotations=annotations;
 		  this.validationEvalPoint=evalPoint;
 	  }
@@ -569,7 +548,7 @@ public class CrowdsourcingLearningCurve {
 			          boolean onlyAnnotateLabeledData = true;
 			          double val = trainEval(nullPipe, nullPipe, nullPipe, nullPipe, 
 			              initialization, dataRnd, algRnd, null, // null stopwatch
-			              validationData, onlyAnnotateLabeledData, extraUnlabeledData, // train on validation (also include unannotated/unlabeled training data) 
+			              validationData, onlyAnnotateLabeledData,  
 			              Datasets.emptyDataset(validationData.getInfo()), // no test data 
 			              annotations, 
 			              bTheta, CrowdsourcingLearningCurve.bMu, bPhi, bGamma, cGamma, CrowdsourcingLearningCurve.lambda, validationEvalPoint,
@@ -656,7 +635,7 @@ public class CrowdsourcingLearningCurve {
       PrintWriter annotationsOut, PrintWriter tabularPredictionsOut,
       PrintWriter resultsOut, SerializableCrowdsourcingState initialState, 
       RandomGenerator dataRnd, RandomGenerator algRnd,
-      Stopwatch stopwatchData, Dataset trainingData, boolean onlyAnnotateLabeledData, Dataset extraUnlabeledData,  
+      Stopwatch stopwatchData, Dataset trainingData, boolean onlyAnnotateLabeledData,  
       Dataset testData, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations,
       double bTheta, double bMu, double bPhi, double bGamma, double cGamma, 
       String lambda, int evalPoint, LabelingStrategy labelingStrategy, String training, 
@@ -667,10 +646,6 @@ public class CrowdsourcingLearningCurve {
     /////////////////////////////////////////////////////////////////////
     // remove any existing annotations from the training data; this is only relevant if doing multiple evaluations in a single run
     Datasets.clearAnnotations(trainingData);
-    // (We could actually make use of "extra" annotations without technically cheating (they might 
-    // be annotations on the test or validation portion of the data), but we don't just because they cause
-    // learning curves to begin at higher than expected numbers and are confusing.
-    Datasets.clearAnnotations(extraUnlabeledData);
     // most or all ground-truth labels are hidden for crowdsourcing inference 
     if (annotationStrategy!=AnnotationStrategy.real){
       trainingData = Datasets.hideAllLabelsButNPerClass(trainingData, numObservedLabelsPerClass, dataRnd);
@@ -687,7 +662,6 @@ public class CrowdsourcingLearningCurve {
     logger.info("algorithm seed "+algorithmSeed);
     logger.info("hyperparameters: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
     logger.info("\ntraining data: \n"+Datasets.summaryOf(trainingData,1));
-    logger.info("\nextra training data: \n"+Datasets.summaryOf(extraUnlabeledData,1));
     logger.info("\ntest data: \n"+Datasets.summaryOf(testData,1));
     
     // TODO; handle data with known and observed labels is suitable for adding as extra supervision to models 
@@ -797,9 +771,6 @@ public class CrowdsourcingLearningCurve {
       }
     } // end annotate
 
-    // add extra unlabeled data to the training set
-    trainingData = Datasets.join(trainingData,extraUnlabeledData);
-    
     // truncate unannotated training data (if requested). Note that some 
     // algorithms do this below manually no matter what option is specified
     if (truncateUnannotatedData){
@@ -975,6 +946,13 @@ public class CrowdsourcingLearningCurve {
         ));
     resultsOut.flush();
     PredictionTabulator.writeTo(predictions, tabularPredictionsOut);
+    
+    // for debugging only
+    try {
+      Files2.write(Datasets.toAnnotationCsv(trainingData), "/tmp/"+Paths.baseName(trainingData.getInfo().getSource())+".csv");
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
 
     logger.info("annacc = " + DoubleArrays.toString(predictions.annotatorAccuracies()));
     logger.info("machacc = " + predictions.machineAccuracy());
@@ -1151,8 +1129,8 @@ public class CrowdsourcingLearningCurve {
       throw new IllegalStateException("unknown dataset type: " + datasetType);
     }
     
-    // randomize order 
-    data.shuffle(rnd);
+//    // randomize order 
+//    data.shuffle(rnd);
     
     // Postprocessing: remove all documents with duplicate sources or empty features
     data = Datasets.filteredDataset(data, Predicates.and(Datasets.filterDuplicateSources(), Datasets.filterNonEmpty()));
@@ -1310,6 +1288,69 @@ public class CrowdsourcingLearningCurve {
       rates.put((long)j, annotatorRates[j]);
     }
     return rates;
+  }
+  
+  /**
+   * How to do data splits in a reasonable way less obvious than it seems like it should be for multiannotator data. 
+   * Each item may either have a gold label or not, and each item may also either have one or more annotations or not.
+   * We want a training set, a validation set, and a test set. The test set only needs items with gold labels. 
+   * The train and validation sets should split the remaining “supervised” data (has label and/or annotation). 
+   * The train and validation sets should both share all “unsupervised” data (no labels or annotations). 
+   * Furthermore, we’d like the data to be randomized such that adding unsupervised data does not change 
+   * which supervised items get allocated to train/validation/test. Otherwise, you get weird situations 
+   * where adding unannotated and unlabeled data causes majority vote to apparently perform differently. 
+   * All of these properties are respected by the following split scheme.
+   * 
+   *                labeled     -->  randomize -->  split("train1", "validation1", "test1")
+   *               / 
+   *      annotated 
+   *     /         \
+   *    /           not labeled --> "extra"
+   * all                
+   *    \             
+   *     \             /labeled -->  randomize -->  split("train1", "validation1", "test1")
+   *      not annotated
+   *                   \
+   *                    not labeled --> "extra"
+   *                    
+   * train = train1 + train2 + extra
+   * validation = validation1 + validation2 + extra
+   * test = test1 + test2
+   */
+  private static List<Dataset> splitData(Dataset fullData, double trainingPercent, double validationPercent, RandomGenerator rnd){
+
+    // check ranges
+    Preconditions.checkArgument(0<=trainingPercent && trainingPercent<=100,"trainingPercent must be between 0 and 100 (inclusive) "+trainingPercent);
+    Preconditions.checkArgument(0<=validationPercent && validationPercent<=100,"validationPercent must be between 0 and 100 (inclusive) "+validationPercent);
+    Preconditions.checkArgument(validationPercent+trainingPercent<=100,"trainingPercent+validationPercent must be between 0 and 100 (inclusive) "+trainingPercent+"+"+validationPercent);
+    
+    // create split tree as shown in function javadoc
+    Pair<? extends Dataset, ? extends Dataset> allSplit = Datasets.divideInstancesWithAnnotations(fullData);
+    
+    Dataset annDataset = allSplit.getFirst();
+    Pair<? extends Dataset, ? extends Dataset> annSplit = Datasets.divideInstancesWithLabels(annDataset);
+    Dataset annLabDataset = annSplit.getFirst();
+    Dataset annNolabDataset = annSplit.getSecond();
+    List<Dataset> annLabSplits = Datasets.split(Datasets.shuffled(annLabDataset, rnd),
+        new double[]{trainingPercent,validationPercent,(100-(trainingPercent+validationPercent))});
+    
+    Dataset noannDataset = allSplit.getSecond();
+    Pair<? extends Dataset, ? extends Dataset> noannSplit = Datasets.divideInstancesWithLabels(noannDataset);
+    Dataset noannLabDataset = noannSplit.getFirst();
+    Dataset noannNolabDataset = noannSplit.getSecond();
+    List<Dataset> noannLabSplits = Datasets.split(Datasets.shuffled(noannLabDataset, rnd),
+        new double[]{trainingPercent,validationPercent,(100-(trainingPercent+validationPercent))});
+
+    final Dataset trainingData = Datasets.join(annLabSplits.get(0), noannLabSplits.get(0), annNolabDataset, noannNolabDataset);
+    final Dataset validationData = Datasets.join(annLabSplits.get(1), noannLabSplits.get(1), annNolabDataset, noannNolabDataset);
+    final Dataset testData = Datasets.join(annLabSplits.get(2), noannLabSplits.get(2)); // note: we could ensure we don't waste any observed labels here, but it's not critical
+    
+    logger.info("\ntraining data split: \n"+Datasets.summaryOf(trainingData,1));
+    logger.info("\ntest data split: \n"+Datasets.summaryOf(testData,1));
+    logger.info("\nvalidation data split: \n"+Datasets.summaryOf(validationData,1));
+    Preconditions.checkState(testData.getInfo().getNumDocumentsWithoutLabels()==0,"test data must all have labels");
+    
+    return Lists.newArrayList(trainingData, validationData, testData);
   }
   
 }

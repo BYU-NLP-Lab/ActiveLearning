@@ -97,14 +97,16 @@ public class MetricComputers {
               });
     }
     public String compute(Dataset data) {
-      int annotationsCount = 0;
+      int numAnnotations = 0;
       int numInstancesAnnotated = 0;
       for (DatasetInstance inst : data) {
-        annotationsCount += inst.getInfo().getNumAnnotations();
+        numAnnotations += inst.getInfo().getNumAnnotations();
         numInstancesAnnotated += inst.getInfo().getNumAnnotations() == 0 ? 0: 1;
       }
-      Preconditions.checkState(data.getInfo().getNumDocumentsWithAnnotations()==numInstancesAnnotated);
-      Preconditions.checkState(data.getInfo().getNumAnnotations()==annotationsCount);
+      Preconditions.checkState(data.getInfo().getNumDocumentsWithAnnotations()==numInstancesAnnotated, 
+          "Bad numDocumentsWithAnnotations. Dataset reports "+data.getInfo().getNumDocumentsWithAnnotations()+". Manual calculation yields "+numInstancesAnnotated);
+      Preconditions.checkState(data.getInfo().getNumAnnotations()==numAnnotations, 
+          "Bad numAnnotations. Dataset reports "+data.getInfo().getNumAnnotations()+". Manual calculation yields "+numAnnotations);
       return Joiner.on(',').join(
           new String[] { 
               "" + data.getInfo().getNumDocumentsWithAnnotations(), 
