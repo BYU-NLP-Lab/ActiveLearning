@@ -17,14 +17,10 @@ package edu.byu.nlp.al;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.math3.random.RandomGenerator;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
 
 import edu.byu.nlp.data.FlatInstance;
 import edu.byu.nlp.data.types.Dataset;
@@ -50,12 +46,8 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
     super(annotationRecorder);
 	  queue = Lists.newArrayList();
 	  for (FlatInstance<D, L> inst: instances){
-	    // find all annotations associated with this item
-	    Multimap<Long, FlatInstance<D, L>> instanns = annotations.getAnnotationsFor(inst.getSource(), inst.getData());
-	    // add each annotation to the queue separately
-	    for (Entry<Long, FlatInstance<D, L>> instann: instanns.entries()){
-        queue.add(instann.getValue());
-	    }
+	    // add each annotation associated with this item to the queue 
+	    queue.addAll(annotations.getAnnotationsFor(inst.getSource(), inst.getData()).values());
 	  }
 	  // sort the annotation queue based on annotation order
 	  Datasets.sortAnnotations(queue);
@@ -98,8 +90,8 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
 	}
 	
 
-  public static EmpiricalAnnotationInstanceManager<SparseFeatureVector, Integer> newManager(int k,
-          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations, RandomGenerator rnd) {
+  public static EmpiricalAnnotationInstanceManager<SparseFeatureVector, Integer> newManager(
+          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations) {
     
     List<FlatInstance<SparseFeatureVector, Integer>> instances = Datasets.instancesIn(dataset);
     return new EmpiricalAnnotationInstanceManager<SparseFeatureVector, Integer>(instances,annotations,

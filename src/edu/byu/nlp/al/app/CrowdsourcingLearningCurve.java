@@ -47,6 +47,7 @@ import edu.byu.nlp.al.ABArbiterInstanceManager;
 import edu.byu.nlp.al.AnnotationInfo;
 import edu.byu.nlp.al.AnnotationRequest;
 import edu.byu.nlp.al.DatasetAnnotationRecorder;
+import edu.byu.nlp.al.EmpiricalAnnotationLayersInstanceManager;
 import edu.byu.nlp.al.EmpiricalAnnotationInstanceManager;
 import edu.byu.nlp.al.GeneralizedRoundRobinInstanceManager;
 import edu.byu.nlp.al.InstanceManager;
@@ -290,7 +291,7 @@ public class CrowdsourcingLearningCurve {
   @Option(optStrings={"-k","--num-anns-per-instance"})
   private static int k = 1; // Used by grr/ab
 
-  private enum AnnotationStrategy {grr, kdeep, ab, real}; 
+  private enum AnnotationStrategy {grr, kdeep, ab, real, reallayers}; 
   @Option
   private static AnnotationStrategy annotationStrategy = AnnotationStrategy.kdeep;
   
@@ -430,7 +431,7 @@ public class CrowdsourcingLearningCurve {
     // if we are dealing with real data, we read in annotators with the data. Otherwise, 
     // we'll have to change it. 
     annotatorAccuracy.generateConfusionMatrices(dataRnd, varyAnnotatorRates, fullData.getInfo().getNumClasses(), annotatorFile);
-    if (annotationStrategy!=AnnotationStrategy.real){
+    if (!annotationStrategy.toString().contains("real")){
       fullData = Datasets.withNewAnnotators(fullData, annotatorAccuracy.getAnnotatorIdIndexer());
     }
     if (annotationStrategy==AnnotationStrategy.kdeep){
@@ -646,10 +647,10 @@ public class CrowdsourcingLearningCurve {
     /////////////////////////////////////////////////////////////////////
     // remove any existing annotations from the training data; this is only relevant if doing multiple evaluations in a single run
     Datasets.clearAnnotations(trainingData);
-    // most or all ground-truth labels are hidden for crowdsourcing inference 
-    if (annotationStrategy!=AnnotationStrategy.real){
-      trainingData = Datasets.hideAllLabelsButNPerClass(trainingData, numObservedLabelsPerClass, dataRnd);
-    }
+    // all ground-truth labels are hidden for crowdsourcing inference (unless we decide to have a few observed)
+//    if (!annotationStrategy.toString().contains("real")){ // if labels were observed in real data, observe them here
+    trainingData = Datasets.hideAllLabelsButNPerClass(trainingData, numObservedLabelsPerClass, dataRnd);
+//    }
     logger.info("Trusted labels available for " + trainingData.getInfo().getNumDocumentsWithObservedLabels() + " instances");
     logger.info("No labels available for " + trainingData.getInfo().getNumDocumentsWithoutObservedLabels() + " instances");
 
@@ -661,8 +662,7 @@ public class CrowdsourcingLearningCurve {
     logger.info("data seed "+dataSeed);
     logger.info("algorithm seed "+algorithmSeed);
     logger.info("hyperparameters: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
-    logger.info("\ntraining data: \n"+Datasets.summaryOf(trainingData,1));
-    logger.info("\ntest data: \n"+Datasets.summaryOf(testData,1));
+
     
     // TODO; handle data with known and observed labels is suitable for adding as extra supervision to models 
     Dataset observedLabelsTrainingData = Datasets.divideInstancesWithObservedLabels(trainingData).getFirst();
@@ -675,7 +675,7 @@ public class CrowdsourcingLearningCurve {
     // Annotators
     /////////////////////////////////////////////////////////////////////
     List<? extends LabelProvider<SparseFeatureVector, Integer>> annotators;
-    if (annotationStrategy==AnnotationStrategy.real){
+    if (annotationStrategy.toString().contains("real")){
       annotators = createEmpiricalAnnotators(annotations);
       logger.info("Number of Human Annotators = " + annotators.size());
       annotatorAccuracy = null; // avoid reporting misleading stats based on unused simulation parameters
@@ -718,8 +718,11 @@ public class CrowdsourcingLearningCurve {
       break;
     case real:
       baselineChooser = new MajorityVote(algRnd);
-      Dataset instances = onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData;
-      instanceManager = EmpiricalAnnotationInstanceManager.newManager(k, instances, annotations, dataRnd);
+      instanceManager = EmpiricalAnnotationInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations);
+      break;
+    case reallayers:
+      baselineChooser = new MajorityVote(algRnd);
+      instanceManager = EmpiricalAnnotationLayersInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations, dataRnd);
       break;
     default:
         throw new IllegalArgumentException("Unknown annotation strategy: " + annotationStrategy.name());
@@ -776,6 +779,10 @@ public class CrowdsourcingLearningCurve {
     if (truncateUnannotatedData){
     	trainingData = truncateUnannotatedUnlabeledData(trainingData);
     }
+    
+    // report final state of the dataset before training
+    logger.info("\nFinal training data (actually used for training): \n"+Datasets.summaryOf(trainingData,1));
+    logger.info("\nFinal test data (actually used for testing): \n"+Datasets.summaryOf(testData,1));
     
     /////////////////////////////////////////////////////////////////////
     // Build a dataset labeler
@@ -1345,9 +1352,10 @@ public class CrowdsourcingLearningCurve {
     final Dataset validationData = Datasets.join(annLabSplits.get(1), noannLabSplits.get(1), annNolabDataset, noannNolabDataset);
     final Dataset testData = Datasets.join(annLabSplits.get(2), noannLabSplits.get(2)); // note: we could ensure we don't waste any observed labels here, but it's not critical
     
+    logger.info("Data after original split");
     logger.info("\ntraining data split: \n"+Datasets.summaryOf(trainingData,1));
-    logger.info("\ntest data split: \n"+Datasets.summaryOf(testData,1));
     logger.info("\nvalidation data split: \n"+Datasets.summaryOf(validationData,1));
+    logger.info("\ntest data split: \n"+Datasets.summaryOf(testData,1));
     Preconditions.checkState(testData.getInfo().getNumDocumentsWithoutLabels()==0,"test data must all have labels");
     
     return Lists.newArrayList(trainingData, validationData, testData);

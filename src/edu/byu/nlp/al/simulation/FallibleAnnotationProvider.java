@@ -16,6 +16,7 @@
 package edu.byu.nlp.al.simulation;
 
 import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 
 import edu.byu.nlp.crowdsourcing.LabelProvider;
 import edu.byu.nlp.data.types.SparseFeatureVector;
@@ -39,7 +40,9 @@ public class FallibleAnnotationProvider<D,L> implements LabelProvider<D,L> {
 	/** {@inheritDoc} */
 	@Override
   public L labelFor(String source, D datum) {
-		return labelErrorFunction.apply(goldLabelProvider.labelFor(source, datum));
+	  L goldLabel = goldLabelProvider.labelFor(source, datum);
+    Preconditions.checkNotNull(goldLabel,"No gold label available for instance "+source+". Unable to simulate annotation.");
+		return labelErrorFunction.apply(goldLabel);
 	}
 	
 	public static FallibleAnnotationProvider<SparseFeatureVector,Integer> from(
