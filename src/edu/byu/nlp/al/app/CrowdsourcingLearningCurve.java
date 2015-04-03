@@ -1056,7 +1056,11 @@ public class CrowdsourcingLearningCurve {
       break;
     // Web Pages
     case COMPANIES:
-      // TODO: determine what to do
+      tokenTransform = Functions2.compose(
+          new ShortWordFilter(2),
+          new PorterStemmer(),
+          StopWordRemover.malletStopWordRemover()
+          );
       break;
     // tweets
     case AIRLINES:
