@@ -94,7 +94,7 @@ import edu.byu.nlp.crowdsourcing.PriorSpecification;
 import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingState;
 import edu.byu.nlp.crowdsourcing.SerializedLabelLabeler;
 import edu.byu.nlp.crowdsourcing.em.ConfusedSLDADiscreteModelLabeler;
-import edu.byu.nlp.crowdsourcing.em.RaykarModelLabeler;
+import edu.byu.nlp.crowdsourcing.em.LogRespModelLabeler;
 import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModel;
 import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModelMath.DiagonalizationMethod;
 import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModelNeutered;
@@ -103,7 +103,7 @@ import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldItemRespModel;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldLabeler;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMomRespModel;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiRespModel;
-import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldRaykarModel;
+import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldLogRespModel;
 import edu.byu.nlp.data.docs.CountCutoffFeatureSelectorFactory;
 import edu.byu.nlp.data.docs.DocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.FeatureSelectorFactories;
@@ -249,12 +249,12 @@ public class CrowdsourcingLearningCurve {
       + "(e.g., 1 is equivalent to document feature normalization).")
   private static int featureNormalizationConstant = -1;
 
-  private enum LabelingStrategy {multiresp, ubaseline, baseline, momresp, itemresp, raykar, rayktrunc, varrayk, varmultiresp, varmomresp, varitemresp, cslda, random, gold, pass};
+  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, VARRAYK, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, RANDOM, GOLD, PASS};
   
   /* -------------  Initialization Methods  ------------------- */
 
   @Option
-  private static LabelingStrategy initializationStrategy = LabelingStrategy.random;
+  private static LabelingStrategy initializationStrategy = LabelingStrategy.RANDOM;
   
   @Option(help = "A sequence of colon-delimited training operations with valid values "
       + "sample,maximize,none where "
@@ -267,7 +267,7 @@ public class CrowdsourcingLearningCurve {
   /* -------------  Dataset Labeler Methods  ------------------- */
 
   @Option
-  private static LabelingStrategy labelingStrategy = LabelingStrategy.ubaseline;
+  private static LabelingStrategy labelingStrategy = LabelingStrategy.UBASELINE;
 
   @Option(help = "A sequence of colon-delimited training operations with valid values "
       + "sample,maximize,none where "
@@ -412,7 +412,7 @@ public class CrowdsourcingLearningCurve {
     /////////////////////////////////////////////////////////////////////
     final Stopwatch stopwatchData = Stopwatch.createStarted();
     // currently cslda can't handle fractional word counts
-    featureNormalizationConstant = labelingStrategy==LabelingStrategy.cslda? -1: featureNormalizationConstant;
+    featureNormalizationConstant = labelingStrategy==LabelingStrategy.CSLDA? -1: featureNormalizationConstant;
     Dataset fullData = readData(dataRnd,featureNormalizationConstant);
 
     Preconditions.checkArgument(annotateTopKChoices<=fullData.getInfo().getNumClasses(), "--annotate-top-k-choices must not be greater than the number of classes");
@@ -803,65 +803,65 @@ public class CrowdsourcingLearningCurve {
     switch(labelingStrategy){
 
     // uniform random predictions
-    case random:
+    case RANDOM:
     	labeler = new RandomLabelLabeler(algRnd);
     	break;
     	
     // use initial values unchanged
-    case pass:
+    case PASS:
     	labeler = new SerializedLabelLabeler(initialState);
     	break;
     	
-    case gold:
+    case GOLD:
     	labeler = new GoldLabelLabeler();
     	break;
     
-    case ubaseline:
+    case UBASELINE:
       // this labeler reports labeled data without alteration, and trains an uncertainty-
       // preserving naive bayes variant on it to label the unlabeled and test portions
       labeler = new SingleLabelLabeler(new UncertaintyPreservingNaiveBayesLearner(), new DatasetBuilder(baselineChooser), annotators.size());
       break;
       
-    case baseline:
+    case BASELINE:
       // this labeler reports labeled data without alteration, and trains a naive bayes 
       // on it to label the unlabeled and test portions
       labeler = new SingleLabelLabeler(new NaiveBayesLearner(), new DatasetBuilder(baselineChooser), annotators.size());
       break;
 
-    case raykar:
-      labeler = new RaykarModelLabeler(trainingData,  priors, true);
+    case LOGRESP_ST:
+      labeler = new LogRespModelLabeler(trainingData,  priors, true);
       break;
 
-    case rayktrunc:
+    case LOGRESP:
 	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
-      labeler = new RaykarModelLabeler(trainingData,  priors, false);
+      labeler = new LogRespModelLabeler(trainingData,  priors, false);
       break;
 
-    case cslda:
+    case CSLDA:
       Preconditions.checkState(featureNormalizationConstant == -1, "cslda can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
       labeler = newCsldaModel(trainingData, priors, numTopics, yInitializer, zInitializer, algRnd);
       break;
       
-    case varrayk:
+    case VARRAYK:
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
-      labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldRaykarModel.ModelBuilder(), 
+      labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldLogRespModel.ModelBuilder(), 
     				  priors, trainingData, yInitializer, mInitializer, algRnd),
     		  training);
       break;
       
-    case varmultiresp:
+    case VARMULTIRESP:
         labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMultiRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
 		  training);
       break;
       
-    case varmomresp:
+    case VARMOMRESP:
         labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMomRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
 	    		  training);
       break;
       
-    case varitemresp:
+    case VARITEMRESP:
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
       labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldItemRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
@@ -873,15 +873,15 @@ public class CrowdsourcingLearningCurve {
       MultiAnnModelBuilder multiannModelBuilder;
       
       switch(labelingStrategy){
-      case multiresp:
+      case MULTIRESP:
         multiannModelBuilder = new BlockCollapsedMultiAnnModel.ModelBuilder();
         break;
         
-      case momresp:
+      case MOMRESP:
         multiannModelBuilder = new BlockCollapsedMultiAnnModelNeutered.ModelBuilder();
         break;
         
-      case itemresp:
+      case ITEMRESP:
 	    trainingData = truncateUnannotatedUnlabeledData(trainingData);
         multiannModelBuilder = new CollapsedItemResponseModel.ModelBuilder();
         break;
