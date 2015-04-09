@@ -94,6 +94,7 @@ import edu.byu.nlp.crowdsourcing.PriorSpecification;
 import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingState;
 import edu.byu.nlp.crowdsourcing.SerializedLabelLabeler;
 import edu.byu.nlp.crowdsourcing.em.ConfusedSLDADiscreteModelLabeler;
+import edu.byu.nlp.crowdsourcing.em.LogRespLDAModelLabeler;
 import edu.byu.nlp.crowdsourcing.em.LogRespModelLabeler;
 import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModel;
 import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModelMath.DiagonalizationMethod;
@@ -249,7 +250,7 @@ public class CrowdsourcingLearningCurve {
       + "(e.g., 1 is equivalent to document feature normalization).")
   private static int featureNormalizationConstant = -1;
 
-  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, VARRAYK, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, RANDOM, GOLD, PASS};
+  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, LOGRESP_LDA, RANDOM, GOLD, PASS};
   
   /* -------------  Initialization Methods  ------------------- */
 
@@ -411,8 +412,8 @@ public class CrowdsourcingLearningCurve {
     // Read and prepare the data
     /////////////////////////////////////////////////////////////////////
     final Stopwatch stopwatchData = Stopwatch.createStarted();
-    // currently cslda can't handle fractional word counts
-    featureNormalizationConstant = labelingStrategy==LabelingStrategy.CSLDA? -1: featureNormalizationConstant;
+    // currently nothing lda-related can handle fractional word counts
+    featureNormalizationConstant = labelingStrategy==LabelingStrategy.CSLDA || labelingStrategy==LabelingStrategy.LOGRESP_LDA? -1: featureNormalizationConstant;
     Dataset fullData = readData(dataRnd,featureNormalizationConstant);
 
     Preconditions.checkArgument(annotateTopKChoices<=fullData.getInfo().getNumClasses(), "--annotate-top-k-choices must not be greater than the number of classes");
@@ -839,10 +840,15 @@ public class CrowdsourcingLearningCurve {
 
     case CSLDA:
       Preconditions.checkState(featureNormalizationConstant == -1, "cslda can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
-      labeler = newCsldaModel(trainingData, priors, numTopics, yInitializer, zInitializer, algRnd);
+      labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, algRnd);
       break;
       
-    case VARRAYK:
+    case LOGRESP_LDA:
+      Preconditions.checkState(featureNormalizationConstant == -1, "LOGRESP_LDA can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
+      labeler = new LogRespLDAModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, algRnd);
+      break;
+      
+    case VARLOGRESP:
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
       labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldLogRespModel.ModelBuilder(), 
     				  priors, trainingData, yInitializer, mInitializer, algRnd),
@@ -982,15 +988,6 @@ public class CrowdsourcingLearningCurve {
   }
 
   
-
-  private static DatasetLabeler newCsldaModel(Dataset trainingData, PriorSpecification priors, int numTopics, 
-		  AssignmentInitializer yInitializer, MatrixAssignmentInitializer zInitializer, RandomGenerator algRnd) {
-   
-	return new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, 
-        zInitializer, yInitializer, priors, algRnd);
-  }
-
-
 
 
   private static void logAccuracy(String prefix, OverallAccuracy acc){
