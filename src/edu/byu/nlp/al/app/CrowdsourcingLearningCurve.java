@@ -665,7 +665,7 @@ public class CrowdsourcingLearningCurve {
     logger.info("hyperparameters: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
 
     
-    // TODO; handle data with known and observed labels is suitable for adding as extra supervision to models 
+    // TODO; data with known and observed labels is suitable for adding as extra supervision to models (assuming they know how to deal with it)
     Dataset observedLabelsTrainingData = Datasets.divideInstancesWithObservedLabels(trainingData).getFirst();
     // data with known but concealed labels is suitable for simulating annotators and doing evaluation 
     Dataset concealedLabelsTrainingData = Datasets.divideInstancesWithLabels(trainingData).getFirst();
@@ -967,6 +967,7 @@ public class CrowdsourcingLearningCurve {
       e.printStackTrace();
     }
 
+    logger.info("confusion matrix\n"+new ConfusionMatrixComputer(trainingData.getInfo().getLabelIndexer()).compute(predictions.labeledPredictions()).toString());
     logger.info("annacc = " + DoubleArrays.toString(predictions.annotatorAccuracies()));
     logger.info("machacc = " + predictions.machineAccuracy());
 //    logger.info("machacc_mat = " + Matrices.toString(predictions.machineConfusionMatrix()));
