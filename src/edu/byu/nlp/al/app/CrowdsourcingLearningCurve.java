@@ -78,6 +78,8 @@ import edu.byu.nlp.classify.eval.OverallAccuracy;
 import edu.byu.nlp.classify.eval.Predictions;
 import edu.byu.nlp.classify.eval.ProbabilisticLabelErrorFunction;
 import edu.byu.nlp.classify.util.ModelTraining;
+import edu.byu.nlp.classify.util.ModelTraining.IntermediatePredictionLogger;
+import edu.byu.nlp.classify.util.ModelTraining.OperationType;
 import edu.byu.nlp.classify.util.ModelTraining.SupportsTrainingOperations;
 import edu.byu.nlp.crowdsourcing.AnnotatorAccuracySetting;
 import edu.byu.nlp.crowdsourcing.ArbiterVote;
@@ -458,7 +460,8 @@ public class CrowdsourcingLearningCurve {
     if (validationPercent>0){
     	MDC.put("context", "hyperopt");
     	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
-    	ModelTraining.doOperations(hyperparamTraining, new CrowdsourcingHyperparameterOptimizer(initialization, validationData, annotations, validationEvalPoint));
+    	ModelTraining.doOperations(hyperparamTraining, 
+    	    new CrowdsourcingHyperparameterOptimizer(initialization, validationData, annotations, validationEvalPoint));
     	MDC.remove("context");
     }
 
@@ -643,7 +646,7 @@ public class CrowdsourcingLearningCurve {
       PrintWriter resultsOut, SerializableCrowdsourcingState initialState, 
       RandomGenerator dataRnd, RandomGenerator algRnd,
       Stopwatch stopwatchData, Dataset trainingData, boolean onlyAnnotateLabeledData,  
-      Dataset testData, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations,
+      final Dataset testData, final EmpiricalAnnotations<SparseFeatureVector, Integer> annotations,
       double bTheta, double bMu, double bPhi, double bGamma, double cGamma, 
       String lambda, int evalPoint, LabelingStrategy labelingStrategy, String training, 
       boolean returnLabeledAccuracy) {
@@ -805,6 +808,22 @@ public class CrowdsourcingLearningCurve {
     MatrixAssignmentInitializer zInitializer = ModelInitialization.backoffStateInitializerForZ(initialState, 
     		ModelInitialization.uniformRowMatrixInitializer(new ModelInitialization.UniformAssignmentInitializer(numTopics, algRnd))); 
     
+    final Dataset evalData = trainingData;
+    IntermediatePredictionLogger predictionLogger = new IntermediatePredictionLogger() {
+      @Override
+      public void logPredictions(int iteration, OperationType opType,
+          String variableName, String[] args, DatasetLabeler intermediateLabeler) {
+        if (opType==OperationType.MAXIMIZE || iteration%25==0){
+          // print intermediate confusion matrices
+          Predictions predictions = intermediateLabeler.label(evalData, testData);
+          logger.info("confusion matrix after "+opType+"-"+variableName+" (args="+Joiner.on('-').join(args)+" iteration="+iteration+")\n"
+              +new ConfusionMatrixComputer(evalData.getInfo().getLabelIndexer()).compute(predictions.labeledPredictions()).toString());
+          logAccuracy("accuracy after "+opType+"-"+variableName+" (args="+Joiner.on('-').join(args)+" iteration="+iteration+")\n", 
+              new AccuracyComputer().compute(predictions, annotations.getDataInfo().getNullLabel()));
+        }
+      }
+    };
+    
     PriorSpecification priors = new PriorSpecification(bTheta, bMu, cMu, bGamma, cGamma, bPhi, etaVariance, inlineHyperparamTuning, annotators.size());
     switch(labelingStrategy){
 
@@ -845,38 +864,38 @@ public class CrowdsourcingLearningCurve {
 
     case CSLDA:
       Preconditions.checkState(featureNormalizationConstant == -1, "cslda can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
-      labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, algRnd);
+      labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, algRnd);
       break;
       
     case LOGRESP_LDA:
       Preconditions.checkState(featureNormalizationConstant == -1, "LOGRESP_LDA can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
-      labeler = new LogRespLDAModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, algRnd);
+      labeler = new LogRespLDAModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, algRnd);
       break;
       
     case VARLOGRESP:
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
       labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldLogRespModel.ModelBuilder(), 
     				  priors, trainingData, yInitializer, mInitializer, algRnd),
-    		  training);
+    		  training, predictionLogger);
       break;
       
     case VARMULTIRESP:
         labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMultiRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
-		  training);
+		  training, predictionLogger);
       break;
       
     case VARMOMRESP:
         labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMomRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
-	    		  training);
+	    		  training, predictionLogger);
       break;
       
     case VARITEMRESP:
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
       labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldItemRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
-	    		  training);
+	    		  training, predictionLogger);
       break;
       
     // some variant of multiannotator model sampling
@@ -906,7 +925,7 @@ public class CrowdsourcingLearningCurve {
     				  priors, trainingData, yInitializer, mInitializer, algRnd),
     		  debugOut, predictSingleLastSample, training, 
 	          diagonalizationMethod, diagonalizationWithFullConfusionMatrix, goldInstancesForDiagonalization, trainingData, 
-	          lambda, algRnd);
+	          lambda, predictionLogger, algRnd);
       
     }
     
