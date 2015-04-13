@@ -101,7 +101,7 @@ import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModelMath.Diagonali
 import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModelNeutered;
 import edu.byu.nlp.crowdsourcing.gibbs.CollapsedItemResponseModel;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldItemRespModel;
-import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldLabeler;
+import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiAnnLabeler;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMomRespModel;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiRespModel;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldLogRespModel;
@@ -504,17 +504,21 @@ public class CrowdsourcingLearningCurve {
 		  this.validationEvalPoint=evalPoint;
 	  }
 	@Override
-	public void sample(String variableName, String[] args) {
+	public Double sample(String variableName, int iteration, String[] args) {
 		throw new UnsupportedOperationException("not implemented");
 	}
+  @Override
+  public DatasetLabeler getIntermediateLabeler() {
+    throw new UnsupportedOperationException("not implemented");
+  }
 	/**
-	 * args are in the form maximize-[params]-[maxiterations]-[training]
+	 * args are in the form maximize-1-[params]-[maxiterations]-[training]
 	 * where [params] has a comma-separated list of parameter names to be updated
 	 * and [training] has the same form as what is given to the --training param. 
 	 * (the global --training args are used as default values).
 	 */
 	@Override
-	public void maximize(final String parameterNames, final String[] args) {
+	public Double maximize(final String parameterNames, int iteration, final String[] args) {
 		// parameterNames: comma-separated list of param names to be updated
 		importParams(parameterNames);
 		preparePointsAndBoundaries(parameterNames);
@@ -565,6 +569,7 @@ public class CrowdsourcingLearningCurve {
 	    logger.info("final hyperparameter values: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
 	    // export the best values to static variables
 	    exportParams(parameterNames); 
+	    return null; // return value is ignored 
 	}
 	private void preparePointsAndBoundaries(String parameterNames){
 		List<Double> startPointList = Lists.newArrayList();
@@ -850,26 +855,26 @@ public class CrowdsourcingLearningCurve {
       
     case VARLOGRESP:
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
-      labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldLogRespModel.ModelBuilder(), 
+      labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldLogRespModel.ModelBuilder(), 
     				  priors, trainingData, yInitializer, mInitializer, algRnd),
     		  training);
       break;
       
     case VARMULTIRESP:
-        labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMultiRespModel.ModelBuilder(), 
+        labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMultiRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
 		  training);
       break;
       
     case VARMOMRESP:
-        labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMomRespModel.ModelBuilder(), 
+        labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMomRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
 	    		  training);
       break;
       
     case VARITEMRESP:
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
-      labeler = new MeanFieldLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldItemRespModel.ModelBuilder(), 
+      labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldItemRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
 	    		  training);
       break;
