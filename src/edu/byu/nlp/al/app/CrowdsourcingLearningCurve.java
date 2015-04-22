@@ -1201,6 +1201,7 @@ public class CrowdsourcingLearningCurve {
       return Joiner.on(',').join(new String[]{
           "k",
           "labeling_strategy",
+          "doc_to_features_method",
           "annotation_strategy",
           "training",
           "data_seed",
@@ -1236,6 +1237,7 @@ public class CrowdsourcingLearningCurve {
       return Joiner.on(',').join(new String[]{
           ""+k,
           ""+labelingStrategy,
+          ""+docToFeaturesMethod,
           ""+annotationStrategy,
           ""+training,
           ""+dataSeed,
