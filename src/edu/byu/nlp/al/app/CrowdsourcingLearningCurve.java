@@ -15,7 +15,6 @@
  */
 package edu.byu.nlp.al.app;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
@@ -27,7 +26,6 @@ import org.apache.commons.math3.analysis.MultivariateFunction;
 import org.apache.commons.math3.optim.PointValuePair;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.apache.commons.math3.random.RandomGenerator;
-import org.apache.commons.vfs2.FileSystemException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -47,8 +45,8 @@ import edu.byu.nlp.al.ABArbiterInstanceManager;
 import edu.byu.nlp.al.AnnotationInfo;
 import edu.byu.nlp.al.AnnotationRequest;
 import edu.byu.nlp.al.DatasetAnnotationRecorder;
-import edu.byu.nlp.al.EmpiricalAnnotationLayersInstanceManager;
 import edu.byu.nlp.al.EmpiricalAnnotationInstanceManager;
+import edu.byu.nlp.al.EmpiricalAnnotationLayersInstanceManager;
 import edu.byu.nlp.al.GeneralizedRoundRobinInstanceManager;
 import edu.byu.nlp.al.InstanceManager;
 import edu.byu.nlp.al.NDeepInstanceManager;
@@ -103,11 +101,12 @@ import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModelMath.Diagonali
 import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModelNeutered;
 import edu.byu.nlp.crowdsourcing.gibbs.CollapsedItemResponseModel;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldItemRespModel;
-import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiAnnLabeler;
-import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMomRespModel;
-import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiRespModel;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldLogRespModel;
+import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMomRespModel;
+import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiAnnLabeler;
+import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiRespModel;
 import edu.byu.nlp.data.docs.CountCutoffFeatureSelectorFactory;
+import edu.byu.nlp.data.docs.DocPipes.Doc2FeaturesMethod;
 import edu.byu.nlp.data.docs.DocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.FeatureSelectorFactories;
 import edu.byu.nlp.data.docs.JSONDocumentDatasetBuilder;
@@ -175,6 +174,9 @@ public class CrowdsourcingLearningCurve {
   
   @Option (help = "-1 ignores this filter. Otherwise, all but the N most frequent words in this document are discarded.")
   private static int topNFeaturesPerDocument = -1; 
+  
+  @Option (help = "How are documents to be converted to feature vectors (aside from any feature selection or transformation).")
+  private static Doc2FeaturesMethod docToFeaturesMethod = Doc2FeaturesMethod.WORD_COUNTS;
   
   @Option
   private static String split = "all";
@@ -404,7 +406,7 @@ public class CrowdsourcingLearningCurve {
   
   
   public static void run(String[] args, PrintWriter debugOut, PrintWriter annotationsOut, PrintWriter tabularPredictionsOut, PrintWriter resultsOut, PrintWriter serializeOut, 
-		  SerializableCrowdsourcingState initializationState, RandomGenerator dataRnd, RandomGenerator algRnd) throws InterruptedException, FileNotFoundException, FileSystemException {
+		  SerializableCrowdsourcingState initializationState, RandomGenerator dataRnd, RandomGenerator algRnd) throws InterruptedException, IOException {
     ArgumentValues opts = new ArgumentParser(CrowdsourcingLearningCurve.class).parseArgs(args);
     
     // record options
@@ -1061,7 +1063,7 @@ public class CrowdsourcingLearningCurve {
 
 
   
-  private static Dataset readData(RandomGenerator rnd, int featureNormalizationConstant) throws FileSystemException, FileNotFoundException {
+  private static Dataset readData(RandomGenerator rnd, int featureNormalizationConstant) throws IOException {
     // transforms per dataset
     Function<String, String> docTransform = null;
     Function<List<String>, List<String>> tokenTransform = null;
@@ -1133,7 +1135,7 @@ public class CrowdsourcingLearningCurve {
     case COMPANIES:
     case DREDZE:
       data = new JSONDocumentDatasetBuilder(basedir, dataset, 
-          docTransform, TokenizerPipes.McCallumAndNigam(), tokenTransform, 
+          docTransform, TokenizerPipes.McCallumAndNigam(), tokenTransform, docToFeaturesMethod,
           FeatureSelectorFactories.conjoin(
               new CountCutoffFeatureSelectorFactory<String>(featureCountCutoff), 
               (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory<String>(topNFeaturesPerDocument)),
@@ -1151,7 +1153,7 @@ public class CrowdsourcingLearningCurve {
     case NEWSGROUPS:
     case REUTERS:
       data = new DocumentDatasetBuilder(basedir, dataset, split, 
-          docTransform, TokenizerPipes.McCallumAndNigam(), tokenTransform, 
+          docTransform, TokenizerPipes.McCallumAndNigam(), tokenTransform, docToFeaturesMethod,
           FeatureSelectorFactories.conjoin(
               new CountCutoffFeatureSelectorFactory<String>(featureCountCutoff), 
               (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory<String>(topNFeaturesPerDocument)),
