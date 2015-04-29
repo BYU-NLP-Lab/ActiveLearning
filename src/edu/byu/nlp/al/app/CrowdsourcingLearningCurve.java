@@ -866,12 +866,12 @@ public class CrowdsourcingLearningCurve {
 
     case CSLDA:
       Preconditions.checkState(featureNormalizationConstant == -1, "cslda can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
-      labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, algRnd);
+      labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, algRnd);
       break;
       
     case LOGRESP_LDA:
       Preconditions.checkState(featureNormalizationConstant == -1, "LOGRESP_LDA can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
-      labeler = new LogRespLDAModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, algRnd);
+      labeler = new LogRespLDAModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, algRnd);
       break;
       
     case VARLOGRESP:
