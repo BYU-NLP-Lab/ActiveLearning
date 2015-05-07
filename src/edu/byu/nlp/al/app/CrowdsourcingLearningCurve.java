@@ -106,11 +106,11 @@ import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMomRespModel;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiAnnLabeler;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiRespModel;
 import edu.byu.nlp.data.docs.CountCutoffFeatureSelectorFactory;
+import edu.byu.nlp.data.docs.DocPipes;
 import edu.byu.nlp.data.docs.DocPipes.Doc2FeaturesMethod;
 import edu.byu.nlp.data.docs.DocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.FeatureSelectorFactories;
 import edu.byu.nlp.data.docs.JSONDocumentDatasetBuilder;
-import edu.byu.nlp.data.docs.TokenizerPipes;
 import edu.byu.nlp.data.docs.TopNPerDocumentFeatureSelectorFactory;
 import edu.byu.nlp.data.pipes.EmailHeaderStripper;
 import edu.byu.nlp.data.pipes.EmoticonTransformer;
@@ -1066,7 +1066,7 @@ public class CrowdsourcingLearningCurve {
   private static Dataset readData(RandomGenerator rnd, int featureNormalizationConstant) throws IOException {
     // transforms per dataset
     Function<String, String> docTransform = null;
-    Function<List<String>, List<String>> tokenTransform = null;
+    Function<String, String> tokenTransform = null;
     switch(datasetType){
     // simulated datasets need no transform
     case NB2:
@@ -1135,7 +1135,7 @@ public class CrowdsourcingLearningCurve {
     case COMPANIES:
     case DREDZE:
       data = new JSONDocumentDatasetBuilder(basedir, dataset, 
-          docTransform, TokenizerPipes.McCallumAndNigam(), tokenTransform, docToFeaturesMethod,
+          docTransform, DocPipes.opennlpSentenceSplitter(), DocPipes.McCallumAndNigamTokenizer(), tokenTransform, docToFeaturesMethod,
           FeatureSelectorFactories.conjoin(
               new CountCutoffFeatureSelectorFactory<String>(featureCountCutoff), 
               (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory<String>(topNFeaturesPerDocument)),
@@ -1153,7 +1153,7 @@ public class CrowdsourcingLearningCurve {
     case NEWSGROUPS:
     case REUTERS:
       data = new DocumentDatasetBuilder(basedir, dataset, split, 
-          docTransform, TokenizerPipes.McCallumAndNigam(), tokenTransform, docToFeaturesMethod,
+          docTransform, DocPipes.opennlpSentenceSplitter(), DocPipes.McCallumAndNigamTokenizer(), tokenTransform, docToFeaturesMethod,
           FeatureSelectorFactories.conjoin(
               new CountCutoffFeatureSelectorFactory<String>(featureCountCutoff), 
               (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory<String>(topNFeaturesPerDocument)),
