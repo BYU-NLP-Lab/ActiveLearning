@@ -107,11 +107,11 @@ import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiAnnLabeler;
 import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiRespModel;
 import edu.byu.nlp.data.docs.CountCutoffFeatureSelectorFactory;
 import edu.byu.nlp.data.docs.DocPipes;
-import edu.byu.nlp.data.docs.DocPipes.Doc2FeaturesMethod;
 import edu.byu.nlp.data.docs.DocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.FeatureSelectorFactories;
 import edu.byu.nlp.data.docs.JSONDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.TopNPerDocumentFeatureSelectorFactory;
+import edu.byu.nlp.data.docs.VectorDocumentDatasetBuilder;
 import edu.byu.nlp.data.pipes.EmailHeaderStripper;
 import edu.byu.nlp.data.pipes.EmoticonTransformer;
 import edu.byu.nlp.data.pipes.PorterStemmer;
@@ -161,7 +161,7 @@ public class CrowdsourcingLearningCurve {
   @Option(help="Should we simulate annotators with varying rates?")
   private static boolean varyAnnotatorRates = false;
   
-  private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB, WEATHER, AIRLINES, COMPANIES}
+  private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB, WEATHER, AIRLINES, COMPANIES, VECTORS}
   
   @Option(help = "base directory of the documents")
   private static DatasetType datasetType = DatasetType.NEWSGROUPS;
@@ -174,9 +174,6 @@ public class CrowdsourcingLearningCurve {
   
   @Option (help = "-1 ignores this filter. Otherwise, all but the N most frequent words in this document are discarded.")
   private static int topNFeaturesPerDocument = -1; 
-  
-  @Option (help = "How are documents to be converted to feature vectors (aside from any feature selection or transformation).")
-  private static Doc2FeaturesMethod docToFeaturesMethod = Doc2FeaturesMethod.WORD_COUNTS;
   
   @Option
   private static String split = "all";
@@ -1135,7 +1132,7 @@ public class CrowdsourcingLearningCurve {
     case COMPANIES:
     case DREDZE:
       data = new JSONDocumentDatasetBuilder(basedir, dataset, 
-          docTransform, DocPipes.opennlpSentenceSplitter(), DocPipes.McCallumAndNigamTokenizer(), tokenTransform, docToFeaturesMethod,
+          docTransform, DocPipes.opennlpSentenceSplitter(), DocPipes.McCallumAndNigamTokenizer(), tokenTransform,
           FeatureSelectorFactories.conjoin(
               new CountCutoffFeatureSelectorFactory<String>(featureCountCutoff), 
               (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory<String>(topNFeaturesPerDocument)),
@@ -1153,12 +1150,15 @@ public class CrowdsourcingLearningCurve {
     case NEWSGROUPS:
     case REUTERS:
       data = new DocumentDatasetBuilder(basedir, dataset, split, 
-          docTransform, DocPipes.opennlpSentenceSplitter(), DocPipes.McCallumAndNigamTokenizer(), tokenTransform, docToFeaturesMethod,
+          docTransform, DocPipes.opennlpSentenceSplitter(), DocPipes.McCallumAndNigamTokenizer(), tokenTransform,
           FeatureSelectorFactories.conjoin(
               new CountCutoffFeatureSelectorFactory<String>(featureCountCutoff), 
               (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory<String>(topNFeaturesPerDocument)),
           featureNormalizer)
           .dataset();
+      break;
+    case VECTORS:
+      data = new VectorDocumentDatasetBuilder(basedir, dataset, split, featureNormalizationConstant).dataset();
       break;
     default:
       throw new IllegalStateException("unknown dataset type: " + datasetType);
@@ -1201,7 +1201,6 @@ public class CrowdsourcingLearningCurve {
       return Joiner.on(',').join(new String[]{
           "k",
           "labeling_strategy",
-          "doc_to_features_method",
           "annotation_strategy",
           "training",
           "data_seed",
@@ -1237,7 +1236,6 @@ public class CrowdsourcingLearningCurve {
       return Joiner.on(',').join(new String[]{
           ""+k,
           ""+labelingStrategy,
-          ""+docToFeaturesMethod,
           ""+annotationStrategy,
           ""+training,
           ""+dataSeed,
