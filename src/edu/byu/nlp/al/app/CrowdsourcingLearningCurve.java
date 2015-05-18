@@ -15,6 +15,7 @@
  */
 package edu.byu.nlp.al.app;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
@@ -368,6 +369,9 @@ public class CrowdsourcingLearningCurve {
     // parse CLI arguments
     ArgumentValues opts = new ArgumentParser(CrowdsourcingLearningCurve.class).parseArgs(args);
 
+    Preconditions.checkArgument(new File(basedir).exists(),"basedir must exist "+basedir);
+    Preconditions.checkArgument(new File(basedir).isDirectory(),"basedir must be a directory "+basedir);
+    Preconditions.checkArgument(new File(basedir).exists(),"basedir must exist "+basedir);
     Preconditions.checkArgument(annotateTopKChoices>0, "--annotate-top-k-choices must be greater than 0");
     
     // this generator deals with data creation (so that all runs with the same annotation strategy
@@ -1074,6 +1078,7 @@ public class CrowdsourcingLearningCurve {
     case CADE12:
     case WEBKB:
     case NG:
+    case VECTORS:
       break;
     // Web Pages
     case COMPANIES:
