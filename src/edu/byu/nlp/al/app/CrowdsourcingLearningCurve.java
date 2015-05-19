@@ -94,18 +94,18 @@ import edu.byu.nlp.crowdsourcing.MultiAnnModelBuilders.MultiAnnModelBuilder;
 import edu.byu.nlp.crowdsourcing.PriorSpecification;
 import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingState;
 import edu.byu.nlp.crowdsourcing.SerializedLabelLabeler;
-import edu.byu.nlp.crowdsourcing.em.ConfusedSLDADiscreteModelLabeler;
-import edu.byu.nlp.crowdsourcing.em.LogRespLDAModelLabeler;
-import edu.byu.nlp.crowdsourcing.em.LogRespModelLabeler;
-import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModel;
-import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModelMath.DiagonalizationMethod;
-import edu.byu.nlp.crowdsourcing.gibbs.BlockCollapsedMultiAnnModelNeutered;
-import edu.byu.nlp.crowdsourcing.gibbs.CollapsedItemResponseModel;
-import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldItemRespModel;
-import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldLogRespModel;
-import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMomRespModel;
-import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiAnnLabeler;
-import edu.byu.nlp.crowdsourcing.meanfield.MeanFieldMultiRespModel;
+import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscreteModelLabeler;
+import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscretePipelinedModelLabeler;
+import edu.byu.nlp.crowdsourcing.models.em.LogRespModelLabeler;
+import edu.byu.nlp.crowdsourcing.models.gibbs.BlockCollapsedMultiAnnModel;
+import edu.byu.nlp.crowdsourcing.models.gibbs.BlockCollapsedMultiAnnModelNeutered;
+import edu.byu.nlp.crowdsourcing.models.gibbs.CollapsedItemResponseModel;
+import edu.byu.nlp.crowdsourcing.models.gibbs.BlockCollapsedMultiAnnModelMath.DiagonalizationMethod;
+import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldItemRespModel;
+import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldLogRespModel;
+import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldMomRespModel;
+import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldMultiAnnLabeler;
+import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldMultiRespModel;
 import edu.byu.nlp.data.docs.CountCutoffFeatureSelectorFactory;
 import edu.byu.nlp.data.docs.DocPipes;
 import edu.byu.nlp.data.docs.DocumentDatasetBuilder;
@@ -867,17 +867,17 @@ public class CrowdsourcingLearningCurve {
 
     case CSLDA:
       Preconditions.checkState(featureNormalizationConstant == -1, "cslda can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
-      labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, false, algRnd);
+      labeler = new CSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, false, algRnd);
       break;
 
     case CSLDALEX:
       Preconditions.checkState(featureNormalizationConstant == -1, "cslda can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
-      labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, true, algRnd);
+      labeler = new CSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, true, algRnd);
       break;
       
     case CSLDAP:
       Preconditions.checkState(featureNormalizationConstant == -1, "LOGRESP_LDA can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
-      labeler = new LogRespLDAModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, algRnd);
+      labeler = new CSLDADiscretePipelinedModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, algRnd);
       break;
       
     case VARLOGRESP:
