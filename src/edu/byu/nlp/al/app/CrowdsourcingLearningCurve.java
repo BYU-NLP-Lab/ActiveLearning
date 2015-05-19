@@ -252,7 +252,7 @@ public class CrowdsourcingLearningCurve {
       + "(e.g., 1 is equivalent to document feature normalization).")
   private static int featureNormalizationConstant = -1;
 
-  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, LOGRESP_LDA, RANDOM, GOLD, PASS};
+  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, CSLDALEX, CSLDAP, RANDOM, GOLD, PASS};
   
   /* -------------  Initialization Methods  ------------------- */
 
@@ -418,7 +418,7 @@ public class CrowdsourcingLearningCurve {
     /////////////////////////////////////////////////////////////////////
     final Stopwatch stopwatchData = Stopwatch.createStarted();
     // currently nothing lda-related can handle fractional word counts
-    featureNormalizationConstant = labelingStrategy==LabelingStrategy.CSLDA || labelingStrategy==LabelingStrategy.LOGRESP_LDA? -1: featureNormalizationConstant;
+    featureNormalizationConstant = labelingStrategy.name().contains("CSLDA")? -1: featureNormalizationConstant;
     Dataset fullData = readData(dataRnd,featureNormalizationConstant);
 
     Preconditions.checkArgument(annotateTopKChoices<=fullData.getInfo().getNumClasses(), "--annotate-top-k-choices must not be greater than the number of classes");
@@ -867,10 +867,15 @@ public class CrowdsourcingLearningCurve {
 
     case CSLDA:
       Preconditions.checkState(featureNormalizationConstant == -1, "cslda can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
-      labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, algRnd);
+      labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, false, algRnd);
+      break;
+
+    case CSLDALEX:
+      Preconditions.checkState(featureNormalizationConstant == -1, "cslda can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
+      labeler = new ConfusedSLDADiscreteModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, true, algRnd);
       break;
       
-    case LOGRESP_LDA:
+    case CSLDAP:
       Preconditions.checkState(featureNormalizationConstant == -1, "LOGRESP_LDA can't handle fractional doc counts: "+featureNormalizationConstant); // cslda code currently can't handle fractional word counts
       labeler = new LogRespLDAModelLabeler(trainingData, numTopics, training, zInitializer, yInitializer, priors, predictionLogger, predictSingleLastSample, algRnd);
       break;
