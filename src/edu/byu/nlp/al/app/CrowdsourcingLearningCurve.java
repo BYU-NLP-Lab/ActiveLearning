@@ -96,11 +96,12 @@ import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingState;
 import edu.byu.nlp.crowdsourcing.SerializedLabelLabeler;
 import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscreteModelLabeler;
 import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscretePipelinedModelLabeler;
+import edu.byu.nlp.crowdsourcing.models.em.FullyDiscriminativeCrowdsourcingModelLabeler;
 import edu.byu.nlp.crowdsourcing.models.em.LogRespModelLabeler;
 import edu.byu.nlp.crowdsourcing.models.gibbs.BlockCollapsedMultiAnnModel;
+import edu.byu.nlp.crowdsourcing.models.gibbs.BlockCollapsedMultiAnnModelMath.DiagonalizationMethod;
 import edu.byu.nlp.crowdsourcing.models.gibbs.BlockCollapsedMultiAnnModelNeutered;
 import edu.byu.nlp.crowdsourcing.models.gibbs.CollapsedItemResponseModel;
-import edu.byu.nlp.crowdsourcing.models.gibbs.BlockCollapsedMultiAnnModelMath.DiagonalizationMethod;
 import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldItemRespModel;
 import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldLogRespModel;
 import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldMomRespModel;
@@ -252,7 +253,7 @@ public class CrowdsourcingLearningCurve {
       + "(e.g., 1 is equivalent to document feature normalization).")
   private static int featureNormalizationConstant = -1;
 
-  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, CSLDALEX, CSLDAP, RANDOM, GOLD, PASS};
+  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, DISCRIM, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, CSLDALEX, CSLDAP, RANDOM, GOLD, PASS};
   
   /* -------------  Initialization Methods  ------------------- */
 
@@ -861,8 +862,13 @@ public class CrowdsourcingLearningCurve {
       break;
 
     case LOGRESP:
-	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
+      trainingData = truncateUnannotatedUnlabeledData(trainingData);
       labeler = new LogRespModelLabeler(trainingData,  priors, false);
+      break;
+
+    case DISCRIM:
+      trainingData = truncateUnannotatedUnlabeledData(trainingData);
+      labeler = new FullyDiscriminativeCrowdsourcingModelLabeler(trainingData,  priors, false);
       break;
 
     case CSLDA:
