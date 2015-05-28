@@ -112,6 +112,7 @@ import edu.byu.nlp.data.docs.DocPipes;
 import edu.byu.nlp.data.docs.DocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.FeatureSelectorFactories;
 import edu.byu.nlp.data.docs.JSONDocumentDatasetBuilder;
+import edu.byu.nlp.data.docs.JSONVectorDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.TopNPerDocumentFeatureSelectorFactory;
 import edu.byu.nlp.data.docs.VectorDocumentDatasetBuilder;
 import edu.byu.nlp.data.pipes.EmailHeaderStripper;
@@ -163,7 +164,7 @@ public class CrowdsourcingLearningCurve {
   @Option(help="Should we simulate annotators with varying rates?")
   private static boolean varyAnnotatorRates = false;
   
-  private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB, WEATHER, AIRLINES, COMPANIES, VECTORS}
+  private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, DREDZE, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB, WEATHER, AIRLINES, COMPANIES, VECTORS, JSON_VEC}
   
   @Option(help = "base directory of the documents")
   private static DatasetType datasetType = DatasetType.NEWSGROUPS;
@@ -1090,6 +1091,7 @@ public class CrowdsourcingLearningCurve {
     case WEBKB:
     case NG:
     case VECTORS:
+    case JSON_VEC:
       break;
     // Web Pages
     case COMPANIES:
@@ -1174,7 +1176,10 @@ public class CrowdsourcingLearningCurve {
           .dataset();
       break;
     case VECTORS:
-      data = new VectorDocumentDatasetBuilder(basedir, dataset, split, featureNormalizationConstant).dataset();
+      data = new VectorDocumentDatasetBuilder(basedir, dataset, split).dataset();
+      break;
+    case JSON_VEC:
+      data = new JSONVectorDocumentDatasetBuilder(basedir, dataset).dataset();
       break;
     default:
       throw new IllegalStateException("unknown dataset type: " + datasetType);
