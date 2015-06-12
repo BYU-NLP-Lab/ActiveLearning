@@ -164,7 +164,7 @@ public class CrowdsourcingLearningCurve {
   @Option(help="Should we simulate annotators with varying rates?")
   private static boolean varyAnnotatorRates = false;
   
-  private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB, WEATHER, TWITTER, COMPANIES, VECTORS, JSON_VEC}
+  private enum DatasetType{NEWSGROUPS, REUTERS, ENRON, NB2, NB20, CFGROUPS1000, R8, R52, NG, CADE12, WEBKB, WEATHER, TWITTER, COMPANIES, INDEXED_VEC, JSON_VEC}
   
   @Option(help = "base directory of the documents")
   private static DatasetType datasetType = DatasetType.NEWSGROUPS;
@@ -1090,8 +1090,8 @@ public class CrowdsourcingLearningCurve {
     case CADE12:
     case WEBKB:
     case NG:
-    case VECTORS:
     case JSON_VEC:
+    case INDEXED_VEC:
       break;
     // Web Pages
     case COMPANIES:
@@ -1177,7 +1177,7 @@ public class CrowdsourcingLearningCurve {
           featureNormalizer)
           .dataset();
       break;
-    case VECTORS:
+    case INDEXED_VEC:
       data = new VectorDocumentDatasetBuilder(basedir, dataset, split).dataset();
       break;
     case JSON_VEC:
