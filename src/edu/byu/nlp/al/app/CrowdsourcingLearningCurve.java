@@ -371,6 +371,10 @@ public class CrowdsourcingLearningCurve {
     // parse CLI arguments
     ArgumentValues opts = new ArgumentParser(CrowdsourcingLearningCurve.class).parseArgs(args);
 
+    if (labelingStrategy.toString().contains("LDA")){
+      Preconditions.checkArgument(numTopics>0,"LDA-based strategies require numTopics>0");
+    }
+    Preconditions.checkArgument(evalPoint>0,"evalPoint must be greater than 0");
     Preconditions.checkArgument(new File(basedir).exists(),"basedir must exist "+basedir);
     Preconditions.checkArgument(new File(basedir).isDirectory(),"basedir must be a directory "+basedir);
     Preconditions.checkArgument(new File(basedir).exists(),"basedir must exist "+basedir);
@@ -1229,7 +1233,7 @@ public class CrowdsourcingLearningCurve {
           "data_seed",
           "algorithm_seed",
           "dataset",
-          "corpus",
+          "dataset_type",
           "annotator_accuracy",
           "unannotated_document_weight",
           "pre_normalize_documents",
