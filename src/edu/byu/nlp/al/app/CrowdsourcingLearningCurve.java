@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.math3.analysis.MultivariateFunction;
 import org.apache.commons.math3.optim.PointValuePair;
 import org.apache.commons.math3.random.MersenneTwister;
@@ -366,6 +367,16 @@ public class CrowdsourcingLearningCurve {
       + "If -1, don't do any annotator clustering.")
   public static int numAnnotatorClusters = -1;
   
+  private static PrintWriter prepareOutput(String path, PrintWriter defaultWriter) throws IOException{
+    if (path==null){
+      return defaultWriter;
+    }
+    else{
+      // ensure enclosing dir exists
+      FileUtils.forceMkdir(new File(path).getParentFile());
+      return new PrintWriter(path);
+    }
+  }
   
   public static void main(String[] args) throws InterruptedException, IOException{
     // parse CLI arguments
@@ -395,12 +406,14 @@ public class CrowdsourcingLearningCurve {
     initializationChains = (initializationChains.size()==0)? null: initializationChains;  
     SerializableCrowdsourcingState initializationState = SerializableCrowdsourcingState.majorityVote(initializationChains, algRnd);
     
+    // ensure encosing 
+    
     // open IO streams
-    PrintWriter debugOut = debugFile == null ?  nullWriter(): new PrintWriter(debugFile);
-    PrintWriter annotationsOut = annotationsFile == null ? nullWriter() : new PrintWriter(annotationsFile);
-    PrintWriter tabularPredictionsOut = tabularFile == null ? nullWriter() : new PrintWriter(tabularFile);
-    PrintWriter resultsOut = resultsFile == null ? new PrintWriter(System.out) : new PrintWriter(resultsFile);
-    PrintWriter serializeOut = serializeToFile==null ? nullWriter() : new PrintWriter(serializeToFile);
+    PrintWriter debugOut = prepareOutput(debugFile, nullWriter());
+    PrintWriter annotationsOut = prepareOutput(annotationsFile, nullWriter()); 
+    PrintWriter tabularPredictionsOut = prepareOutput(tabularFile, nullWriter()); 
+    PrintWriter resultsOut = prepareOutput(resultsFile, new PrintWriter(System.out)); 
+    PrintWriter serializeOut = prepareOutput(serializeToFile, nullWriter()); 
     
     // pass on to the main program
     CrowdsourcingLearningCurve.run(args, debugOut, annotationsOut, tabularPredictionsOut, resultsOut, serializeOut, initializationState, dataRnd, algRnd);
