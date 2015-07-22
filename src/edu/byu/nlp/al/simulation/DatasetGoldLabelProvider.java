@@ -33,15 +33,15 @@ import edu.byu.nlp.data.types.SparseFeatureVector;
  */
 public class DatasetGoldLabelProvider<D, L> implements LabelProvider<D, L> {
 
-	private final Map<String, L> goldLabels;
+	private final Map<Integer, L> goldLabels;
 	
 	@VisibleForTesting
-	DatasetGoldLabelProvider(Map<String, L> goldLabels) {
+	DatasetGoldLabelProvider(Map<Integer, L> goldLabels) {
 		this.goldLabels = goldLabels;
 	}
 
 	public static DatasetGoldLabelProvider<SparseFeatureVector, Integer> from(Dataset dataset) {
-		Map<String, Integer> goldLabels = Maps.newHashMap();
+		Map<Integer, Integer> goldLabels = Maps.newHashMap();
 		for (DatasetInstance inst: dataset) {
 			goldLabels.put(inst.getInfo().getSource(), inst.getLabel());
 		}
@@ -50,7 +50,7 @@ public class DatasetGoldLabelProvider<D, L> implements LabelProvider<D, L> {
 	
 	/** {@inheritDoc} */
 	@Override
-	  public L labelFor(String source, D datum) {
+	  public L labelFor(int source, D datum) {
 		return goldLabels.get(datum);
 	}
 

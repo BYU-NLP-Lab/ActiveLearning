@@ -63,7 +63,7 @@ public class EmpiricalAnnotationLayersInstanceManager <D, L> extends AbstractIns
     for (FlatInstance<D, L> inst: instances){
       // find all annotations associated with this item
       Stack<FlatInstance<D, L>> anns = new Stack<>();
-      anns.addAll(annotations.getAnnotationsFor(inst.getSource(), inst.getData()).values());
+      anns.addAll(annotations.getAnnotationsFor(inst.getInstanceId(), inst.getData()).values());
       // scrambled per-instance arrival times
       Collections.shuffle(anns,new Random(rnd.nextLong()));
       perInstanceAnnotationLists.put(inst.getSource(), anns);
@@ -94,7 +94,7 @@ public class EmpiricalAnnotationLayersInstanceManager <D, L> extends AbstractIns
   
   
   @Override
-    public FlatInstance<D, L> instanceFor(long annotatorId, long timeout, TimeUnit timeUnit)
+    public FlatInstance<D, L> instanceFor(int annotatorId, long timeout, TimeUnit timeUnit)
           throws InterruptedException {
     
     if (queue.size()>0){

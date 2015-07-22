@@ -24,8 +24,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
-import edu.byu.nlp.annotationinterface.java.AnnotationInterfaceJavaUtils;
-import edu.byu.nlp.data.FlatAnnotatedInstance;
+import edu.byu.nlp.data.BasicFlatInstance;
 import edu.byu.nlp.data.FlatInstance;
 import edu.byu.nlp.util.FutureIterator;
 import edu.byu.nlp.util.ResettableBooleanLatch;
@@ -42,7 +41,7 @@ public abstract class AbstractInstanceManager<D, L> implements InstanceManager<D
         return true;
     }
     
-    protected void cancelRequest(FlatInstance<D, L> instance, long annotatorId) {
+    protected void cancelRequest(FlatInstance<D, L> instance, int annotatorId) {
         throw new UnsupportedOperationException();
     }
     
@@ -54,7 +53,7 @@ public abstract class AbstractInstanceManager<D, L> implements InstanceManager<D
     /**
      * Returns null if there are currently no instances available for the annotator, or a timeout occurs. 
      */
-    protected abstract FlatInstance<D, L> instanceFor(long annotatorId, long timeout, TimeUnit timeUnit) 
+    protected abstract FlatInstance<D, L> instanceFor(int annotatorId, long timeout, TimeUnit timeUnit) 
             throws InterruptedException;
 
     
@@ -69,7 +68,7 @@ public abstract class AbstractInstanceManager<D, L> implements InstanceManager<D
 
     /** {@inheritDoc} */
     @Override
-    public final synchronized AnnotationRequest<D, L> requestInstanceFor(long annotatorId, long timeout, TimeUnit timeUnit) throws InterruptedException {
+    public final synchronized AnnotationRequest<D, L> requestInstanceFor(int annotatorId, long timeout, TimeUnit timeUnit) throws InterruptedException {
         FlatInstance<D, L> instance = instanceFor(annotatorId, timeout, timeUnit);
         return instance == null ? null : new BasicAnnotationRequest(annotatorId, instance);
     }
@@ -178,10 +177,10 @@ public abstract class AbstractInstanceManager<D, L> implements InstanceManager<D
 
     private class BasicAnnotationRequest implements AnnotationRequest<D, L> {
 
-        private final long annotatorId;
+        private final int annotatorId;
         private final FlatInstance<D, L> instance;
         
-        public BasicAnnotationRequest(long annotatorId, FlatInstance<D, L> instance) {
+        public BasicAnnotationRequest(int annotatorId, FlatInstance<D, L> instance) {
             this.annotatorId = annotatorId;
             this.instance = instance;
         }
@@ -208,16 +207,16 @@ public abstract class AbstractInstanceManager<D, L> implements InstanceManager<D
         @Override
         public boolean storeAnnotation(AnnotationInfo<L> annotationInfo) {
           
-          FlatAnnotatedInstance<D, L> annotation = new FlatAnnotatedInstance<D,L>(
-              AnnotationInterfaceJavaUtils.<D,L>newAnnotatedInstance(
+          FlatInstance<D, L> annotation =
+              new BasicFlatInstance<D, L>(
+                  instance.getInstanceId(), 
+                  instance.getSource(), 
                   annotatorId, 
                   annotationInfo.getAnnotation(), 
+                  null,//annotationInfo.getMeasurement(),  
                   annotationInfo.getAnnotationEvent().getStartTimeNanos(), 
-                  annotationInfo.getAnnotationEvent().getEndTimeNanos(), 
-                  instance.getInstanceId(),
-                  instance.getSource(),  
-                  instance.getData() 
-                  ));
+                  annotationInfo.getAnnotationEvent().getEndTimeNanos()
+                  );
           Preconditions.checkState(annotation.getInstanceId() == instance.getInstanceId(),
               "Reconstituted instance id "+annotation.getInstanceId()+" does not match the original "+instance.getInstanceId());
           

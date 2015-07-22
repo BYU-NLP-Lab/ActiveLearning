@@ -145,7 +145,7 @@ public class DefaultAnnotationServer<D, L> implements AnnotationServer<D, L> {
 
 	/** {@inheritDoc} */
 	@Override
-	public RequestInstanceResponse<D> requestInstanceFor(long annotatorId) throws RemoteException {
+	public RequestInstanceResponse<D> requestInstanceFor(int annotatorId) throws RemoteException {
 		// FIXME(rhaertel): prevent an annotator from having more than one outstanding request
 		try {
 			AnnotationRequest<D, L> ar = instanceManager.requestInstanceFor(annotatorId, timeout, timeoutTimeUnit);
@@ -156,8 +156,8 @@ public class DefaultAnnotationServer<D, L> implements AnnotationServer<D, L> {
 			    }
 				return RequestInstanceResponse.noInstances();
 			}
-			InstanceForAnnotation ifa =
-					new InstanceForAnnotation(idCounter.incrementAndGet(), ar.getInstance().getData(), ar.getInstance().getSource());
+			InstanceForAnnotation<D> ifa =
+					new InstanceForAnnotation<D>(idCounter.incrementAndGet(), ar.getInstance().getData(), ar.getInstance().getInstanceId());
 			outstandingRequests.put(ifa.getRequestId(), ar);
 			return RequestInstanceResponse.success(ifa);
 		} catch (InterruptedException e) {

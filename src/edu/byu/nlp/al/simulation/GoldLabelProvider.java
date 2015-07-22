@@ -18,7 +18,6 @@ package edu.byu.nlp.al.simulation;
 import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
 import edu.byu.nlp.crowdsourcing.LabelProvider;
@@ -35,15 +34,15 @@ import edu.byu.nlp.data.types.SparseFeatureVector;
  */
 public class GoldLabelProvider<D,L> implements LabelProvider<D,L> {
 
-	private final Map<String,L> goldLabels;
+	private final Map<Integer,L> goldLabels;
 	
 	@VisibleForTesting
-	GoldLabelProvider(Map<String,L> goldLabels) {
+	GoldLabelProvider(Map<Integer,L> goldLabels) {
 		this.goldLabels = goldLabels;
 	}
 
 	public static GoldLabelProvider<SparseFeatureVector,Integer> from(Dataset dataset) {
-		Map<String, Integer> goldLabels = Maps.newHashMap();
+		Map<Integer, Integer> goldLabels = Maps.newHashMap();
 		for (DatasetInstance inst: dataset) {
 			goldLabels.put(inst.getInfo().getSource(), inst.getLabel());
 		}
@@ -52,7 +51,7 @@ public class GoldLabelProvider<D,L> implements LabelProvider<D,L> {
 	
 	/** {@inheritDoc} */
 	@Override
-  public L labelFor(String source, D datum) {
+  public L labelFor(int source, D datum) {
 		return goldLabels.get(source);
 	}
 

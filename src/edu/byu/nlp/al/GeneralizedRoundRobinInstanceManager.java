@@ -60,7 +60,7 @@ public class GeneralizedRoundRobinInstanceManager<D, L> extends AbstractInstance
 	}
 	
 	@Override
-    public FlatInstance<D, L> instanceFor(long annotatorId, long timeout, TimeUnit timeUnit)
+    public FlatInstance<D, L> instanceFor(int annotatorId, long timeout, TimeUnit timeUnit)
 	        throws InterruptedException {
 	    return it.next();
 	}

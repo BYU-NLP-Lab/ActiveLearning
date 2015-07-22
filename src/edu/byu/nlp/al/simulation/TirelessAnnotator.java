@@ -33,7 +33,7 @@ import edu.byu.nlp.util.Timers.Timer;
  */
 public class TirelessAnnotator<D, L> implements Callable<Void> {
 
-	private final long annotatorId;
+	private final int annotatorId;
 	private final AnnotationServer<D, L> server;
 	private final AnnotationInfoProvider<D, L> annotationInfoProvider;
 	private final boolean realTime;
@@ -43,7 +43,7 @@ public class TirelessAnnotator<D, L> implements Callable<Void> {
 	 * If realTime is true, then this Annotator's thread sleeps for the amount of time returned by the
 	 * annotationInfoProvider for each instance. 
 	 */
-	public TirelessAnnotator(long annotatorId, AnnotationServer<D, L> server,
+	public TirelessAnnotator(int annotatorId, AnnotationServer<D, L> server,
 			AnnotationInfoProvider<D, L> annotationInfoProvider, boolean realTime, Timer timer) {
 		this.annotatorId = annotatorId;
 		this.server = server;

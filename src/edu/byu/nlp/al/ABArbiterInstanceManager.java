@@ -81,13 +81,13 @@ public abstract class ABArbiterInstanceManager<D, L> extends AbstractInstanceMan
             if (Counters.count(valuesOfAnnotations(anns)).numEntries() > 1) {
                 conflicts.add(ann);
             } else {
-                completed.add(ann.getInstanceId());
+                completed.add((long)ann.getInstanceId());
             }
         } else if (anns.size() == 3) {
             if (!arbiters.contains(anns.get(2).getAnnotator())) {
                 throw new IllegalStateException("Expecting arbiter for 3rd annotation");
             }
-            completed.add(ann.getInstanceId());
+            completed.add((long)ann.getInstanceId());
         } else if (anns.size() > 3) {
             throw new IllegalStateException("More than 3 annotations: " + ann);
         }
@@ -108,7 +108,7 @@ public abstract class ABArbiterInstanceManager<D, L> extends AbstractInstanceMan
 
     /** {@inheritDoc} */
     @Override
-    public FlatInstance<D, L> instanceFor(long annotatorId, long timeout, TimeUnit timeUnit) throws InterruptedException {
+    public FlatInstance<D, L> instanceFor(int annotatorId, long timeout, TimeUnit timeUnit) throws InterruptedException {
         if (arbiters.contains(annotatorId)) {
             return conflicts.poll(timeout, timeUnit);
         } else {
@@ -146,7 +146,7 @@ public abstract class ABArbiterInstanceManager<D, L> extends AbstractInstanceMan
             new DatasetAnnotationRecorder(dataset)) {
           @Override
           protected List<FlatInstance<SparseFeatureVector, Integer>> getAnnotationsFor(String instanceSource) {
-            return Lists.newArrayList(dataset.lookupInstance(instanceSource).getAnnotations().getRawLabelAnnotations());
+            return Lists.newArrayList(dataset.lookupInstance(instanceSource).getAnnotations().getRawAnnotations());
           }
         };
     }
@@ -154,7 +154,7 @@ public abstract class ABArbiterInstanceManager<D, L> extends AbstractInstanceMan
     private Collection<L> valuesOfAnnotations(Collection<FlatInstance<D,L>> annotations){
       Collection<L> vals = Lists.newArrayList();
       for (FlatInstance<?,L> ann: annotations){
-        vals.add(ann.getLabel());
+        vals.add(ann.getAnnotation());
       }
       return vals;
     }

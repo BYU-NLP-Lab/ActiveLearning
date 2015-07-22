@@ -29,7 +29,7 @@ import edu.byu.nlp.util.FutureIterator;
 public interface InstanceManager<D, L> {
 
 	/** Provides the next instance for the indicated annotator. **/
-	AnnotationRequest<D, L> requestInstanceFor(long annotatorId, long timeout, TimeUnit timeUnit) throws InterruptedException;
+	AnnotationRequest<D, L> requestInstanceFor(int annotatorId, long timeout, TimeUnit timeUnit) throws InterruptedException;
 	Iterable<FlatInstance<D, L>> instances();
 
 	boolean isDone();

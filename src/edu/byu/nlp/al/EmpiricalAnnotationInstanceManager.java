@@ -47,7 +47,7 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
 	  queue = Lists.newArrayList();
 	  for (FlatInstance<D, L> inst: instances){
 	    // add each annotation associated with this item to the queue 
-	    queue.addAll(annotations.getAnnotationsFor(inst.getSource(), inst.getData()).values());
+	    queue.addAll(annotations.getAnnotationsFor(inst.getInstanceId(), inst.getData()).values());
 	  }
 	  // sort the annotation queue based on annotation order
 	  Datasets.sortAnnotations(queue);
@@ -56,7 +56,7 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
 	}
 	
 	@Override
-    public FlatInstance<D, L> instanceFor(long annotatorId, long timeout, TimeUnit timeUnit)
+  public FlatInstance<D, L> instanceFor(int annotatorId, long timeout, TimeUnit timeUnit)
 	        throws InterruptedException {
 	  if (queue.size()>0){
   	  // get next most recent annotation in the queue

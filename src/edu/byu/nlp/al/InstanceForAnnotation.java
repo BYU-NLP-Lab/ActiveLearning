@@ -26,9 +26,9 @@ public class InstanceForAnnotation<D> {
 
   private final long requestId;
   private final D instance;
-  private final String source;
+  private final int source;
   
-  public InstanceForAnnotation(long requestId, D instance, String source){
+  public InstanceForAnnotation(long requestId, D instance, int source){
     Preconditions.checkNotNull(instance);
     this.requestId=requestId;
     this.instance=instance;
@@ -43,7 +43,7 @@ public class InstanceForAnnotation<D> {
     return instance;
   }
   
-  public String getSource(){
+  public int getSource(){
     return source;
   }
   

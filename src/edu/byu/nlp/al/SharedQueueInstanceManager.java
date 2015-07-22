@@ -94,7 +94,7 @@ public class SharedQueueInstanceManager<D, L> extends AbstractInstanceManager<D,
 
     /** {@inheritDoc} */
     @Override
-    public FlatInstance<D, L> instanceFor(long annotatorId, long timeout, TimeUnit timeUnit) throws InterruptedException {
+    public FlatInstance<D, L> instanceFor(int annotatorId, long timeout, TimeUnit timeUnit) throws InterruptedException {
         ScoredFlatInstance<D, L> ScoredFlatInstance = q.poll(timeout, timeUnit);
         if (ScoredFlatInstance != null) {
             long staleness = numAnnotations() - ScoredFlatInstance.getAge();

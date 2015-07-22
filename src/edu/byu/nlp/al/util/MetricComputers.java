@@ -214,7 +214,7 @@ public class MetricComputers {
             (pred.getInstance().getLabel() != null)? pred.getInstance().getLabel(): "", // gold
             (pred.getPredictedLabel() != null)? pred.getPredictedLabel() : "", // predicted
             Joiner.on(',').join(annotations), // annotations
-            pred.getInstance().getInfo().getSource()); // source
+            pred.getInstance().getInfo().getRawSource()); // source
         writer.println(Joiner.on(',').join(parts));
       }
     }

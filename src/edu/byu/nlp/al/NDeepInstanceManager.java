@@ -49,7 +49,7 @@ public class NDeepInstanceManager<D, L> extends AbstractInstanceManager<D, L> im
 
 	private final RandomRoundRobinQueue<FlatInstance<D, L>> q;
   private final PeekingIterator<FlatInstance<D, L>> it;
-  private final Set<Long> usedAnnotators= Sets.newConcurrentHashSet();
+  private final Set<Integer> usedAnnotators= Sets.newConcurrentHashSet();
   private String previousInstanceSource = null;
 
 	/** {@inheritDoc} */
@@ -67,7 +67,7 @@ public class NDeepInstanceManager<D, L> extends AbstractInstanceManager<D, L> im
 	}
 	
 	@Override
-  public FlatInstance<D, L> instanceFor(long annotatorId, long timeout, TimeUnit timeUnit)
+  public FlatInstance<D, L> instanceFor(int annotatorId, long timeout, TimeUnit timeUnit)
 	        throws InterruptedException {
 	  synchronized (this) {
 	    FlatInstance<D, L> inst = it.peek();

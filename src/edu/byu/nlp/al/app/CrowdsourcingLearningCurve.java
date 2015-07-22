@@ -116,12 +116,13 @@ import edu.byu.nlp.data.docs.JSONDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.JSONVectorDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.TopNPerDocumentFeatureSelectorFactory;
 import edu.byu.nlp.data.docs.VectorDocumentDatasetBuilder;
-import edu.byu.nlp.data.pipes.EmailHeaderStripper;
-import edu.byu.nlp.data.pipes.EmoticonTransformer;
-import edu.byu.nlp.data.pipes.PorterStemmer;
-import edu.byu.nlp.data.pipes.ShortWordFilter;
-import edu.byu.nlp.data.pipes.StopWordRemover;
+import edu.byu.nlp.data.streams.EmailHeaderStripper;
+import edu.byu.nlp.data.streams.EmoticonTransformer;
+import edu.byu.nlp.data.streams.PorterStemmer;
+import edu.byu.nlp.data.streams.ShortWordFilter;
+import edu.byu.nlp.data.streams.StopWordRemover;
 import edu.byu.nlp.data.types.Dataset;
+import edu.byu.nlp.data.types.DatasetInstance;
 import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
 import edu.byu.nlp.dataset.Datasets;
@@ -685,7 +686,7 @@ public class CrowdsourcingLearningCurve {
     logger.info("Trusted labels available for " + trainingData.getInfo().getNumDocumentsWithObservedLabels() + " instances");
     logger.info("No labels available for " + trainingData.getInfo().getNumDocumentsWithoutObservedLabels() + " instances");
 
-
+    
     Preconditions.checkArgument(trainingData.getInfo().getNumDocuments()>0,"Training dataset contained 0 documents. Cannot train a model with no training data.");
     logger.info("======================================================================================");
     logger.info("============= Train + eval ("+labelingStrategy+" bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma+", evalpoint="+evalPoint+") ==============");
@@ -701,7 +702,7 @@ public class CrowdsourcingLearningCurve {
     Dataset concealedLabelsTrainingData = Datasets.divideInstancesWithLabels(trainingData).getFirst();
 
     Stopwatch stopwatchInference = Stopwatch.createStarted();
-    
+
     /////////////////////////////////////////////////////////////////////
     // Annotators
     /////////////////////////////////////////////////////////////////////
@@ -779,7 +780,7 @@ public class CrowdsourcingLearningCurve {
       // 2) the realistic annotator enforces historical order.
       while (request==null && !instanceManager.isDone()){
         // Pick an annotator at random
-        long annotatorId = dataRnd.nextInt(annotators.size());
+        int annotatorId = dataRnd.nextInt(annotators.size());
         try {
           request = instanceManager.requestInstanceFor(annotatorId, 1, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
@@ -795,8 +796,11 @@ public class CrowdsourcingLearningCurve {
       }
       // Annotate (ignore timing information)
       else {
+
+//        Preconditions.checkNotNull(request.getInstance().getSource());
+        
         LabelProvider<SparseFeatureVector, Integer> annotator = annotators.get((int)request.getAnnotatorId());
-        Iterable<Integer> labels = DelegatingKUniqueMultiLabeler.of(annotator, annotateTopKChoices).labelFor(request.getInstance().getSource(), request.getInstance().getData());
+        Iterable<Integer> labels = DelegatingKUniqueMultiLabeler.of(annotator, annotateTopKChoices).labelFor(request.getInstance().getInstanceId(), request.getInstance().getData());
         for (Integer label: labels){
           AnnotationInfo<Integer> ai = new AnnotationInfo<Integer>(new Long(numAnnotations), label, TimedEvent.Zeros(), TimedEvent.Zeros());
           request.storeAnnotation(ai);
@@ -1065,8 +1069,9 @@ public class CrowdsourcingLearningCurve {
   private static List<? extends LabelProvider<SparseFeatureVector, Integer>> createEmpiricalAnnotators(
                                                          EmpiricalAnnotations<SparseFeatureVector, Integer> annotations) {
     List<EmpiricalAnnotationProvider<SparseFeatureVector, Integer>> annotators = Lists.newArrayList();
-    for (Long annotator: annotations.getDataInfo().getAnnotatorIdIndexer()){
-      annotators.add(new EmpiricalAnnotationProvider<SparseFeatureVector, Integer>(annotator, annotations));
+    for (String annotator: annotations.getDataInfo().getAnnotatorIdIndexer()){
+      int annotatorIndex = annotations.getDataInfo().getAnnotatorIdIndexer().indexOf(annotator);
+      annotators.add(new EmpiricalAnnotationProvider<SparseFeatureVector, Integer>(annotatorIndex, annotations));
     }
     return annotators;
   }
@@ -1172,7 +1177,7 @@ public class CrowdsourcingLearningCurve {
           docTransform, DocPipes.opennlpSentenceSplitter(), DocPipes.McCallumAndNigamTokenizer(), tokenTransform,
           FeatureSelectorFactories.conjoin(
               new CountCutoffFeatureSelectorFactory<String>(featureCountCutoff), 
-              (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory<String>(topNFeaturesPerDocument)),
+              (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory(topNFeaturesPerDocument)),
           featureNormalizer)
           .dataset();
       break;
@@ -1190,7 +1195,7 @@ public class CrowdsourcingLearningCurve {
           docTransform, DocPipes.opennlpSentenceSplitter(), DocPipes.McCallumAndNigamTokenizer(), tokenTransform,
           FeatureSelectorFactories.conjoin(
               new CountCutoffFeatureSelectorFactory<String>(featureCountCutoff), 
-              (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory<String>(topNFeaturesPerDocument)),
+              (topNFeaturesPerDocument<0)? null: new TopNPerDocumentFeatureSelectorFactory(topNFeaturesPerDocument)),
           featureNormalizer)
           .dataset();
       break;
@@ -1359,10 +1364,10 @@ public class CrowdsourcingLearningCurve {
     }
   }
 
-  private static Map<Long,Double> identityAnnotatorRatesMap(double[] annotatorRates) {
-    Map<Long,Double> rates = Maps.newHashMap();
+  private static Map<Integer,Double> identityAnnotatorRatesMap(double[] annotatorRates) {
+    Map<Integer,Double> rates = Maps.newHashMap();
     for (int j=0; j<annotatorRates.length; j++){
-      rates.put((long)j, annotatorRates[j]);
+      rates.put(j, annotatorRates[j]);
     }
     return rates;
   }

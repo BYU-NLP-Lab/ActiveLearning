@@ -26,7 +26,7 @@ import java.rmi.RemoteException;
  */
 public interface AnnotationServer<D, L> {
 	void cancelInstanceRequest(long requestId) throws RemoteException;
-	RequestInstanceResponse<D> requestInstanceFor(long annotatorId) throws RemoteException;
+	RequestInstanceResponse<D> requestInstanceFor(int annotatorId) throws RemoteException;
 	void storeAnnotation(AnnotationInfo<L> annotationInfo) throws RemoteException;
 	void shutdown();
 }

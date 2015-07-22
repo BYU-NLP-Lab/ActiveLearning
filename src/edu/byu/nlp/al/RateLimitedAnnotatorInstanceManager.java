@@ -36,10 +36,10 @@ import edu.byu.nlp.util.FutureIterator;
 public class RateLimitedAnnotatorInstanceManager<D, L> implements InstanceManager<D, L> {
 
   private InstanceManager<D, L> delegate;
-  private Map<Long, Double> annotatorRates;
+  private Map<Integer, Double> annotatorRates;
   private RandomGenerator rnd;
 
-  public RateLimitedAnnotatorInstanceManager(InstanceManager<D, L> delegate, Map<Long, Double> annotatorRates, RandomGenerator rnd){
+  public RateLimitedAnnotatorInstanceManager(InstanceManager<D, L> delegate, Map<Integer, Double> annotatorRates, RandomGenerator rnd){
     Preconditions.checkNotNull(delegate);
     Preconditions.checkNotNull(annotatorRates);
     Preconditions.checkNotNull(rnd);
@@ -50,7 +50,7 @@ public class RateLimitedAnnotatorInstanceManager<D, L> implements InstanceManage
 
   /** {@inheritDoc} */
   @Override
-  public AnnotationRequest<D, L> requestInstanceFor(long annotatorId, long timeout, TimeUnit timeUnit) throws InterruptedException {
+  public AnnotationRequest<D, L> requestInstanceFor(int annotatorId, long timeout, TimeUnit timeUnit) throws InterruptedException {
     Preconditions.checkArgument(annotatorRates.containsKey(annotatorId));
     if (rnd.nextDouble()<annotatorRates.get(annotatorId)){
       return delegate.requestInstanceFor(annotatorId, timeout, timeUnit);
