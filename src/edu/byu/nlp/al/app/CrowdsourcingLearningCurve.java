@@ -24,7 +24,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import measurements.BasicMeasurementModel;
-import measurements.MeasurementModelBuilder;
+import measurements.AbstractMeasurementModelBuilder;
 import measurements.MeasurementModelLabeler;
 
 import org.apache.commons.io.FileUtils;
@@ -938,7 +938,7 @@ public class CrowdsourcingLearningCurve {
       break;
       
     case MEASUREMENT:
-      labeler = new MeasurementModelLabeler(MeasurementModelBuilder.initializeBuilder(new BasicMeasurementModel.Builder(), 
+      labeler = new MeasurementModelLabeler(AbstractMeasurementModelBuilder.initializeBuilder(new BasicMeasurementModel.Builder(), 
           priors, yInitializer, algRnd),
           training, predictionLogger);
       break;
