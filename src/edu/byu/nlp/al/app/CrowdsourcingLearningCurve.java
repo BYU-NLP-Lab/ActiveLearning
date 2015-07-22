@@ -23,6 +23,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import measurements.BasicMeasurementModel;
+import measurements.MeasurementModelBuilder;
+import measurements.MeasurementModelLabeler;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.math3.analysis.MultivariateFunction;
 import org.apache.commons.math3.optim.PointValuePair;
@@ -122,7 +126,6 @@ import edu.byu.nlp.data.streams.PorterStemmer;
 import edu.byu.nlp.data.streams.ShortWordFilter;
 import edu.byu.nlp.data.streams.StopWordRemover;
 import edu.byu.nlp.data.types.Dataset;
-import edu.byu.nlp.data.types.DatasetInstance;
 import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
 import edu.byu.nlp.dataset.Datasets;
@@ -256,7 +259,7 @@ public class CrowdsourcingLearningCurve {
       + "(e.g., 1 is equivalent to document feature normalization).")
   private static int featureNormalizationConstant = -1;
 
-  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, DISCRIM, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, CSLDALEX, CSLDAP, RANDOM, GOLD, PASS};
+  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, DISCRIM, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, CSLDALEX, CSLDAP, RANDOM, GOLD, PASS, MEASUREMENT}; 
   
   /* -------------  Initialization Methods  ------------------- */
 
@@ -932,6 +935,12 @@ public class CrowdsourcingLearningCurve {
       labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldItemRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
 	    		  training, predictionLogger);
+      break;
+      
+    case MEASUREMENT:
+      labeler = new MeasurementModelLabeler(MeasurementModelBuilder.initializeBuilder(new BasicMeasurementModel.Builder(), 
+          priors, yInitializer, algRnd),
+          training, predictionLogger);
       break;
       
     // some variant of multiannotator model sampling
