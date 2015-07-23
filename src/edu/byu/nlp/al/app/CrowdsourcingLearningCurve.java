@@ -23,9 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import measurements.BasicMeasurementModel;
-import measurements.MeasurementModelLabeler;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.math3.analysis.MultivariateFunction;
 import org.apache.commons.math3.optim.PointValuePair;
@@ -98,6 +95,8 @@ import edu.byu.nlp.crowdsourcing.MultiAnnModelBuilders.MultiAnnModelBuilder;
 import edu.byu.nlp.crowdsourcing.PriorSpecification;
 import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingState;
 import edu.byu.nlp.crowdsourcing.SerializedLabelLabeler;
+import edu.byu.nlp.crowdsourcing.measurements.classification.BasicClassificationMeasurementModel;
+import edu.byu.nlp.crowdsourcing.measurements.classification.ClassificationMeasurementModelLabeler;
 import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscreteModelLabeler;
 import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscretePipelinedModelLabeler;
 import edu.byu.nlp.crowdsourcing.models.em.FullyDiscriminativeCrowdsourcingModelLabeler;
@@ -937,8 +936,8 @@ public class CrowdsourcingLearningCurve {
       break;
       
     case MEASUREMENT:
-      labeler = new MeasurementModelLabeler(
-          new BasicMeasurementModel.Builder().setPriors(priors).setYInitializer(yInitializer).setRnd(algRnd).setData(trainingData),
+      labeler = new ClassificationMeasurementModelLabeler(
+          new BasicClassificationMeasurementModel.Builder().setPriors(priors).setYInitializer(yInitializer).setRnd(algRnd).setData(trainingData),
           training, predictionLogger);
       break;
       
