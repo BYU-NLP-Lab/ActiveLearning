@@ -26,6 +26,7 @@ import com.google.common.collect.Lists;
 
 import edu.byu.nlp.data.BasicFlatInstance;
 import edu.byu.nlp.data.FlatInstance;
+import edu.byu.nlp.data.measurements.ClassificationMeasurements;
 import edu.byu.nlp.util.FutureIterator;
 import edu.byu.nlp.util.ResettableBooleanLatch;
 
@@ -206,14 +207,19 @@ public abstract class AbstractInstanceManager<D, L> implements InstanceManager<D
         /** {@inheritDoc} */
         @Override
         public boolean storeAnnotation(AnnotationInfo<L> annotationInfo) {
+          double measurementValue = 1; // for simulation purposes, assume perfect agreement and confidence
+          double confidence = 1; 
           
           FlatInstance<D, L> annotation =
               new BasicFlatInstance<D, L>(
                   instance.getInstanceId(), 
                   instance.getSource(), 
                   annotatorId, 
-                  annotationInfo.getAnnotation(), 
-                  null,//annotationInfo.getMeasurement(),  
+                  annotationInfo.getAnnotation(),
+                  new ClassificationMeasurements.BasicClassificationAnnotationMeasurement(
+                      annotatorId, measurementValue, confidence, instance.getInstanceId(), 
+                      (int) annotationInfo.getAnnotation()), // FIXME: casting to an int here is NOT general
+                                                            // this is just a temporary fixture to test measurements.
                   annotationInfo.getAnnotationEvent().getStartTimeNanos(), 
                   annotationInfo.getAnnotationEvent().getEndTimeNanos()
                   );

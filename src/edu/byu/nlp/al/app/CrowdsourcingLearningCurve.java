@@ -257,7 +257,7 @@ public class CrowdsourcingLearningCurve {
       + "(e.g., 1 is equivalent to document feature normalization).")
   private static int featureNormalizationConstant = -1;
 
-  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, DISCRIM, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, CSLDALEX, CSLDAP, RANDOM, GOLD, PASS, MEASUREMENT}; 
+  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, DISCRIM, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, CSLDALEX, CSLDAP, RANDOM, GOLD, PASS, MEAS}; 
   
   /* -------------  Initialization Methods  ------------------- */
 
@@ -935,7 +935,7 @@ public class CrowdsourcingLearningCurve {
 	    		  training, predictionLogger);
       break;
       
-    case MEASUREMENT:
+    case MEAS:
       labeler = new ClassificationMeasurementModelLabeler(
           new BasicClassificationMeasurementModel.Builder().setPriors(priors).setYInitializer(yInitializer).setRnd(algRnd).setData(trainingData),
           training, predictionLogger);
