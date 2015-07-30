@@ -734,28 +734,29 @@ public class CrowdsourcingLearningCurve {
     // since only annotations mutate and all code except for crowdsourcing training 
     // code ignores annotations, but it's worth noting.
     /////////////////////////////////////////////////////////////////////
+    boolean recordMeasurements = labelingStrategy == LabelingStrategy.MEAS;
     InstanceManager<SparseFeatureVector, Integer> instanceManager;
     LabelChooser baselineChooser;
     switch(annotationStrategy){
     case ab:
       baselineChooser = new ArbiterVote(arbiters, algRnd);
-      instanceManager = ABArbiterInstanceManager.newManager(trainingData, k==1, arbiters);
+      instanceManager = ABArbiterInstanceManager.newManager(trainingData, k==1, arbiters, recordMeasurements);
       break;
     case grr:
       baselineChooser = new MajorityVote(algRnd);
-      instanceManager = GeneralizedRoundRobinInstanceManager.newManager(k, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
+      instanceManager = GeneralizedRoundRobinInstanceManager.newManager(k, trainingData, new DatasetAnnotationRecorder(trainingData,recordMeasurements), dataRnd);
       break;
     case kdeep:
       baselineChooser = new MajorityVote(algRnd);
-      instanceManager = NDeepInstanceManager.newManager(k, 1, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
+      instanceManager = NDeepInstanceManager.newManager(k, 1, trainingData, new DatasetAnnotationRecorder(trainingData,recordMeasurements), dataRnd);
       break;
     case real:
       baselineChooser = new MajorityVote(algRnd);
-      instanceManager = EmpiricalAnnotationInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations);
+      instanceManager = EmpiricalAnnotationInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations, recordMeasurements);
       break;
     case reallayers:
       baselineChooser = new MajorityVote(algRnd);
-      instanceManager = EmpiricalAnnotationLayersInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations, dataRnd);
+      instanceManager = EmpiricalAnnotationLayersInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations, recordMeasurements, dataRnd);
       break;
     default:
         throw new IllegalArgumentException("Unknown annotation strategy: " + annotationStrategy.name());

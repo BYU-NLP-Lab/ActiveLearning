@@ -21,12 +21,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 import edu.byu.nlp.data.BasicFlatInstance;
 import edu.byu.nlp.data.FlatInstance;
-import edu.byu.nlp.data.measurements.ClassificationMeasurements;
 import edu.byu.nlp.util.FutureIterator;
 import edu.byu.nlp.util.ResettableBooleanLatch;
 
@@ -207,39 +205,30 @@ public abstract class AbstractInstanceManager<D, L> implements InstanceManager<D
         /** {@inheritDoc} */
         @Override
         public boolean storeAnnotation(AnnotationInfo<L> annotationInfo) {
-          double measurementValue = 1; // for simulation purposes, assume perfect agreement and confidence
-          double confidence = 1; 
           
-          FlatInstance<D, L> annotation =
-              new BasicFlatInstance<D, L>(
-                  instance.getInstanceId(), 
-                  instance.getSource(), 
-                  annotatorId, 
-                  annotationInfo.getAnnotation(),
-                  new ClassificationMeasurements.BasicClassificationAnnotationMeasurement(
-                      annotatorId, measurementValue, confidence, instance.getInstanceId(), 
-                      (int) annotationInfo.getAnnotation()), // FIXME: casting to an int here is NOT general
-                                                            // this is just a temporary fixture to test measurements.
-                  annotationInfo.getAnnotationEvent().getStartTimeNanos(), 
-                  annotationInfo.getAnnotationEvent().getEndTimeNanos()
-                  );
-          Preconditions.checkState(annotation.getInstanceId() == instance.getInstanceId(),
-              "Reconstituted instance id "+annotation.getInstanceId()+" does not match the original "+instance.getInstanceId());
+          BasicFlatInstance<D, L> annotation = new BasicFlatInstance<D, L>(
+            instance.getInstanceId(), 
+            instance.getSource(), 
+            annotatorId, 
+            annotationInfo.getAnnotation(),
+            null, // no measurement
+            annotationInfo.getAnnotationEvent().getStartTimeNanos(), 
+            annotationInfo.getAnnotationEvent().getEndTimeNanos()
+            );
           
-//          annotations.add(annotation);
           numAnnotations++;
           
-          // delegate the job of actually recording the annotation to a concrete implementation
+          // delegate the job of actually recording the annotation(s) to a concrete implementation
 //          try{
-            annotationRecorder.recordAnnotation(annotation);
-            annotationAdded(annotation);          
-            signalAllIterators();
-            return true;
+          annotationRecorder.recordAnnotation(annotation);
+          annotationAdded(annotation);          
 //          }
 //          catch(Exception e){
 //            logger
 //            return false;
 //          }
+          signalAllIterators();
+          return true;
         }
     }
     

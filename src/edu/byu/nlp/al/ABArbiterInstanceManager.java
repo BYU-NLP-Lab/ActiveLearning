@@ -130,7 +130,7 @@ public abstract class ABArbiterInstanceManager<D, L> extends AbstractInstanceMan
      * @param twoPass when true, all instances will be annotated once before receiving second annotation.  
      */
     public static InstanceManager<SparseFeatureVector, Integer> newManager(final Dataset dataset, 
-            boolean twoPass, Set<Long> arbiters) {
+            boolean twoPass, Set<Long> arbiters, boolean recordMeasurements) {
       
         List<FlatInstance<SparseFeatureVector, Integer>> allInstances = Datasets.instancesIn(dataset);
         Iterator<FlatInstance<SparseFeatureVector, Integer>> it;
@@ -143,7 +143,7 @@ public abstract class ABArbiterInstanceManager<D, L> extends AbstractInstanceMan
         Collection<Long> completed = Lists.newArrayListWithCapacity(allInstances.size());
         return new ABArbiterInstanceManager<SparseFeatureVector, Integer>(
             allInstances, it, conflicts, completed, arbiters, dataset.getInfo().getNumDocuments(), 
-            new DatasetAnnotationRecorder(dataset)) {
+            new DatasetAnnotationRecorder(dataset, recordMeasurements)) {
           @Override
           protected List<FlatInstance<SparseFeatureVector, Integer>> getAnnotationsFor(String instanceSource) {
             return Lists.newArrayList(dataset.lookupInstance(instanceSource).getAnnotations().getRawAnnotations());

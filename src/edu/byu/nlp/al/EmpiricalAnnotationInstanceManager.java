@@ -91,11 +91,11 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
 	
 
   public static EmpiricalAnnotationInstanceManager<SparseFeatureVector, Integer> newManager(
-          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations) {
+          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations, boolean recordMeasurements) {
     
     List<FlatInstance<SparseFeatureVector, Integer>> instances = Datasets.instancesIn(dataset);
     return new EmpiricalAnnotationInstanceManager<SparseFeatureVector, Integer>(instances,annotations,
-          new DatasetAnnotationRecorder(dataset));
+          new DatasetAnnotationRecorder(dataset, recordMeasurements));
   }
   
 }

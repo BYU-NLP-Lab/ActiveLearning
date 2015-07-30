@@ -130,11 +130,12 @@ public class EmpiricalAnnotationLayersInstanceManager <D, L> extends AbstractIns
   
 
   public static EmpiricalAnnotationLayersInstanceManager<SparseFeatureVector, Integer> newManager(
-          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations, RandomGenerator rnd) {
+          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations, 
+          boolean recordMeasurements, RandomGenerator rnd) {
     
     List<FlatInstance<SparseFeatureVector, Integer>> instances = Datasets.instancesIn(dataset);
     return new EmpiricalAnnotationLayersInstanceManager<SparseFeatureVector, Integer>(instances,annotations,
-          new DatasetAnnotationRecorder(dataset), rnd);
+          new DatasetAnnotationRecorder(dataset, recordMeasurements), rnd);
   }
   
 }
