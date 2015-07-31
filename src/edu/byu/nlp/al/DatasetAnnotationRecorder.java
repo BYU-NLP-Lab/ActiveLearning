@@ -55,7 +55,7 @@ public class DatasetAnnotationRecorder implements AnnotationRecorder<SparseFeatu
       // 1 positive (+1) and the rest negative (-1)
       for (int label=0; label<dataset.getInfo().getNumClasses(); label++){
         // for simulation purposes, assume perfect (dis)agreement values and perfect confidence
-        double measurementValue = baseAnnotation.getAnnotation().equals(label) ? 1: -1; 
+        double measurementValue = baseAnnotation.getAnnotation().equals(label) ? 1: 0; 
         double confidence = 1; 
         annotations.add(
             new BasicFlatInstance<SparseFeatureVector, Integer>(
@@ -65,7 +65,7 @@ public class DatasetAnnotationRecorder implements AnnotationRecorder<SparseFeatu
               null, // no annotation; we'll use measurements instead
               new ClassificationMeasurements.BasicClassificationAnnotationMeasurement(
                   baseAnnotation.getAnnotator(), measurementValue, confidence, baseAnnotation.getSource(),
-                  baseAnnotation.getAnnotation()), 
+                  label), 
               baseAnnotation.getStartTimestamp(), 
               baseAnnotation.getEndTimestamp()
               ));
