@@ -56,6 +56,9 @@ public class DatasetAnnotationRecorder implements AnnotationRecorder<SparseFeatu
       for (int label=0; label<dataset.getInfo().getNumClasses(); label++){
         // for simulation purposes, assume perfect (dis)agreement values and perfect confidence
         double measurementValue = baseAnnotation.getAnnotation().equals(label) ? 1: 0; 
+//        if (!baseAnnotation.getAnnotation().equals(label)){
+//          continue;
+//        }
         double confidence = 1; 
         annotations.add(
             new BasicFlatInstance<SparseFeatureVector, Integer>(
