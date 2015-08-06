@@ -211,7 +211,7 @@ public abstract class AbstractInstanceManager<D, L> implements InstanceManager<D
             instance.getSource(), 
             annotatorId, 
             annotationInfo.getAnnotation(),
-            null, // no measurement
+            annotationInfo.getMeasurement(), 
             annotationInfo.getAnnotationEvent().getStartTimeNanos(), 
             annotationInfo.getAnnotationEvent().getEndTimeNanos()
             );

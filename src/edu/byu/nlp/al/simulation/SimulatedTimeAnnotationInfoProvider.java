@@ -42,7 +42,7 @@ public class SimulatedTimeAnnotationInfoProvider<D, L> implements AnnotationInfo
 		long endTime = startTime + timeSimulator.annotationTimeInNanoSecsFor(ifa.getInstance());
 		TimedEvent annotationEvent = new TimedEvent(startTime, endTime);
 		L goldLabel = labelProvider.labelFor(ifa.getSource(), ifa.getInstance());
-		return new AnnotationInfo<L>(ifa.getRequestId(), goldLabel, annotationEvent, waitTime);
+    return new AnnotationInfo<L>(ifa.getRequestId(), goldLabel, null, annotationEvent, waitTime);
 	}
 
 }

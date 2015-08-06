@@ -47,7 +47,7 @@ public class DelegatingKUniqueMultiLabeler<D,L> implements MultiLabelProvider<D,
   
   /** {@inheritDoc} */
   @Override
-  public Iterable<L> labelFor(int source, D datum) {
+  public Iterable<L> labelFor(String source, D datum) {
     Set<L> labels = Sets.newHashSet();
     while (labels.size()<this.k){
       labels.add(delegate.labelFor(source, datum));

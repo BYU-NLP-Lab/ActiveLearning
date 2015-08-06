@@ -49,31 +49,31 @@ public class DatasetAnnotationRecorder implements AnnotationRecorder<SparseFeatu
     // include the base annotation
     List<FlatInstance<SparseFeatureVector, Integer>> annotations = Lists.newArrayList(baseAnnotation);
     
-    // optionally include add a bunch of measurements encoding the same annotation info (one per class) 
-    if (recordMeasurements){
-      // transform the base annotation into K measurments; 
-      // 1 positive (+1) and the rest negative (-1)
-      for (int label=0; label<dataset.getInfo().getNumClasses(); label++){
-        // for simulation purposes, assume perfect (dis)agreement values and perfect confidence
-        double measurementValue = baseAnnotation.getAnnotation().equals(label) ? 1: 0; 
-//        if (!baseAnnotation.getAnnotation().equals(label)){
-//          continue;
-//        }
-        double confidence = 1; 
-        annotations.add(
-            new BasicFlatInstance<SparseFeatureVector, Integer>(
-              baseAnnotation.getInstanceId(), 
-              baseAnnotation.getSource(), 
-              baseAnnotation.getAnnotator(), 
-              null, // no annotation; we'll use measurements instead
-              new ClassificationMeasurements.BasicClassificationAnnotationMeasurement(
-                  baseAnnotation.getAnnotator(), measurementValue, confidence, baseAnnotation.getSource(),
-                  label), 
-              baseAnnotation.getStartTimestamp(), 
-              baseAnnotation.getEndTimestamp()
-              ));
-      }
-    }
+//    // optionally include add a bunch of measurements encoding the same annotation info (one per class) 
+//    if (recordMeasurements){
+//      // transform the base annotation into K measurments; 
+//      // 1 positive (+1) and the rest negative (-1)
+//      for (int label=0; label<dataset.getInfo().getNumClasses(); label++){
+//        // for simulation purposes, assume perfect (dis)agreement values and perfect confidence
+//        double measurementValue = baseAnnotation.getAnnotation().equals(label) ? 1: 0; 
+////        if (!baseAnnotation.getAnnotation().equals(label)){
+////          continue;
+////        }
+//        double confidence = 1; 
+//        annotations.add(
+//            new BasicFlatInstance<SparseFeatureVector, Integer>(
+//              baseAnnotation.getInstanceId(), 
+//              baseAnnotation.getSource(), 
+//              baseAnnotation.getAnnotator(), 
+//              null, // no annotation; we'll use measurements instead
+//              new ClassificationMeasurements.BasicClassificationAnnotationMeasurement(
+//                  baseAnnotation.getAnnotator(), measurementValue, confidence, baseAnnotation.getSource(),
+//                  label), 
+//              baseAnnotation.getStartTimestamp(), 
+//              baseAnnotation.getEndTimestamp()
+//              ));
+//      }
+//    }
     
     // now add all the annotations
     for (FlatInstance<SparseFeatureVector, Integer> ann: annotations){

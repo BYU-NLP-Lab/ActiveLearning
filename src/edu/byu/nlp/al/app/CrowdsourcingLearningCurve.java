@@ -53,8 +53,8 @@ import edu.byu.nlp.al.GeneralizedRoundRobinInstanceManager;
 import edu.byu.nlp.al.InstanceManager;
 import edu.byu.nlp.al.NDeepInstanceManager;
 import edu.byu.nlp.al.RateLimitedAnnotatorInstanceManager;
-import edu.byu.nlp.al.simulation.DelegatingKUniqueMultiLabeler;
 import edu.byu.nlp.al.simulation.FallibleAnnotationProvider;
+import edu.byu.nlp.al.simulation.FallibleMeasurementProvider;
 import edu.byu.nlp.al.simulation.GoldLabelProvider;
 import edu.byu.nlp.al.util.MetricComputers.AnnotatorAccuracyComputer;
 import edu.byu.nlp.al.util.MetricComputers.DatasetMetricComputer;
@@ -83,7 +83,7 @@ import edu.byu.nlp.classify.util.ModelTraining.OperationType;
 import edu.byu.nlp.classify.util.ModelTraining.SupportsTrainingOperations;
 import edu.byu.nlp.crowdsourcing.AnnotatorAccuracySetting;
 import edu.byu.nlp.crowdsourcing.ArbiterVote;
-import edu.byu.nlp.crowdsourcing.EmpiricalAnnotationProvider;
+import edu.byu.nlp.crowdsourcing.EmpiricalMeasurementProvider;
 import edu.byu.nlp.crowdsourcing.LabelProvider;
 import edu.byu.nlp.crowdsourcing.MajorityVote;
 import edu.byu.nlp.crowdsourcing.ModelInitialization;
@@ -118,12 +118,14 @@ import edu.byu.nlp.data.docs.JSONDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.JSONVectorDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.TopNPerDocumentFeatureSelectorFactory;
 import edu.byu.nlp.data.docs.VectorDocumentDatasetBuilder;
+import edu.byu.nlp.data.measurements.ClassificationMeasurements.ClassificationAnnotationMeasurement;
 import edu.byu.nlp.data.streams.EmailHeaderStripper;
 import edu.byu.nlp.data.streams.EmoticonTransformer;
 import edu.byu.nlp.data.streams.PorterStemmer;
 import edu.byu.nlp.data.streams.ShortWordFilter;
 import edu.byu.nlp.data.streams.StopWordRemover;
 import edu.byu.nlp.data.types.Dataset;
+import edu.byu.nlp.data.types.Measurement;
 import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
 import edu.byu.nlp.dataset.Datasets;
@@ -707,7 +709,7 @@ public class CrowdsourcingLearningCurve {
     /////////////////////////////////////////////////////////////////////
     // Annotators
     /////////////////////////////////////////////////////////////////////
-    List<? extends LabelProvider<SparseFeatureVector, Integer>> annotators;
+    List<? extends LabelProvider<SparseFeatureVector,Measurement>> annotators;
     if (annotationStrategy.toString().contains("real")){
       annotators = createEmpiricalAnnotators(annotations);
       logger.info("Number of Human Annotators = " + annotators.size());
@@ -799,15 +801,13 @@ public class CrowdsourcingLearningCurve {
       // Annotate (ignore timing information)
       else {
 
-//        Preconditions.checkNotNull(request.getInstance().getSource());
+        LabelProvider<SparseFeatureVector, Measurement> annotator = annotators.get((int)request.getAnnotatorId());
+        Measurement measurement = annotator.labelFor(request.getInstance().getSource(), request.getInstance().getData());
+        Integer label = measurement instanceof ClassificationAnnotationMeasurement? ((ClassificationAnnotationMeasurement)measurement).getLabel(): null;
+        AnnotationInfo<Integer> ai = new AnnotationInfo<>(new Long(numAnnotations), label, measurement, TimedEvent.Zeros(), TimedEvent.Zeros());
+        request.storeAnnotation(ai);
+        writeAnnotation(annotationsOut, ai, request);
         
-        LabelProvider<SparseFeatureVector, Integer> annotator = annotators.get((int)request.getAnnotatorId());
-        Iterable<Integer> labels = DelegatingKUniqueMultiLabeler.of(annotator, annotateTopKChoices).labelFor(request.getInstance().getInstanceId(), request.getInstance().getData());
-        for (Integer label: labels){
-          AnnotationInfo<Integer> ai = new AnnotationInfo<Integer>(new Long(numAnnotations), label, TimedEvent.Zeros(), TimedEvent.Zeros());
-          request.storeAnnotation(ai);
-          writeAnnotation(annotationsOut, ai, request);
-        }
       }
     } // end annotate
 
@@ -1074,21 +1074,21 @@ public class CrowdsourcingLearningCurve {
   }
 
 
-  private static List<? extends LabelProvider<SparseFeatureVector, Integer>> createEmpiricalAnnotators(
+  private static List<? extends LabelProvider<SparseFeatureVector,Measurement>> createEmpiricalAnnotators(
                                                          EmpiricalAnnotations<SparseFeatureVector, Integer> annotations) {
-    List<EmpiricalAnnotationProvider<SparseFeatureVector, Integer>> annotators = Lists.newArrayList();
+    List<EmpiricalMeasurementProvider<SparseFeatureVector>> annotators = Lists.newArrayList();
     for (String annotator: annotations.getDataInfo().getAnnotatorIdIndexer()){
       int annotatorIndex = annotations.getDataInfo().getAnnotatorIdIndexer().indexOf(annotator);
-      annotators.add(new EmpiricalAnnotationProvider<SparseFeatureVector, Integer>(annotatorIndex, annotations));
+      annotators.add(new EmpiricalMeasurementProvider<SparseFeatureVector>(annotatorIndex, annotations));
     }
     return annotators;
   }
 
-  public static List<? extends LabelProvider<SparseFeatureVector, Integer>> createAnnotators(Dataset concealedLabeledTrainingData,
+  public static List<? extends LabelProvider<SparseFeatureVector,Measurement>> createAnnotators(Dataset concealedLabeledTrainingData,
                                                                                     AnnotatorAccuracySetting accuracySetting, int numLabels,
                                                                                     RandomGenerator rnd) {
     GoldLabelProvider<SparseFeatureVector,Integer> goldLabelProvider = GoldLabelProvider.from(concealedLabeledTrainingData);
-    List<FallibleAnnotationProvider<SparseFeatureVector,Integer>> annotators = Lists.newArrayList();
+    List<FallibleMeasurementProvider<SparseFeatureVector>> annotators = Lists.newArrayList();
     double[][][] annotatorConfusions = accuracySetting.getConfusionMatrices();
     double[] annotatorRates = accuracySetting.getAnnotatorRates();
     // scale annotator rates up until the first one hits 1 (won't change proportions but will decrease failure rate)
@@ -1097,8 +1097,9 @@ public class CrowdsourcingLearningCurve {
     for (int j=0; j<annotatorConfusions.length; j++) {
       ProbabilisticLabelErrorFunction<Integer> labelErrorFunction = 
           new ProbabilisticLabelErrorFunction<Integer>(new ConfusionMatrixDistribution(annotatorConfusions[j]),rnd);
-      FallibleAnnotationProvider<SparseFeatureVector,Integer> annotator = 
+      FallibleAnnotationProvider<SparseFeatureVector,Integer> fallibleLabelProvider = 
           new FallibleAnnotationProvider<SparseFeatureVector, Integer>(goldLabelProvider, labelErrorFunction);
+      FallibleMeasurementProvider<SparseFeatureVector> annotator = new FallibleMeasurementProvider<>(fallibleLabelProvider, concealedLabeledTrainingData, j, annotatorAccuracy.getAccuracies()[j], rnd);
       annotators.add(annotator);
     }
     return annotators;

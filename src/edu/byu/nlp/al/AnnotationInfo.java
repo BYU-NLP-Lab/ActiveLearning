@@ -15,10 +15,12 @@
  */
 package edu.byu.nlp.al;
 
+import edu.byu.nlp.data.types.Measurement;
 import edu.byu.nlp.util.TimedEvent;
 
 /**
  * @author rah67
+ * @author plf1
  *
  */
 public class AnnotationInfo<L> {
@@ -28,20 +30,26 @@ public class AnnotationInfo<L> {
 	// Start and end times for annotation (No provisions for pauses right now)
 	private final TimedEvent annotationEvent;
 	private final TimedEvent waitEvent;
+  private Measurement measurement;
 
-	public AnnotationInfo(long requestId, L annotation, TimedEvent annotationEvent, TimedEvent waitEvent) {
-		this.requestId = requestId;
-		this.annotation = annotation;
-		this.annotationEvent = annotationEvent;
-		this.waitEvent = waitEvent;
-	}
+  public AnnotationInfo(long requestId, L annotation, Measurement measurement, TimedEvent annotationEvent, TimedEvent waitEvent) {
+    this.requestId = requestId;
+    this.annotation=annotation;
+    this.measurement = measurement;
+    this.annotationEvent = annotationEvent;
+    this.waitEvent = waitEvent;
+  }
 
-	public long getRequestId() {
+  public long getRequestId() {
 		return requestId;
 	}
 
 	public L getAnnotation() {
 		return annotation;
+	}
+	
+	public Measurement getMeasurement(){
+	  return measurement;
 	}
 	
 	public TimedEvent getAnnotationEvent() {
@@ -56,7 +64,7 @@ public class AnnotationInfo<L> {
 	/** {@inheritDoc} */
 	@Override
 	public String toString() {
-		return "AnnotationInfo [requestId=" + requestId + ", annotation=" + annotation + ", annotationEvent="
+		return "AnnotationInfo [requestId=" + requestId + ", measurement=" + measurement + ", annotationEvent="
 				+ annotationEvent + ", waitEvent=" + waitEvent + "]";
 	}
 }

@@ -39,7 +39,7 @@ public class FallibleAnnotationProvider<D,L> implements LabelProvider<D,L> {
 
 	/** {@inheritDoc} */
 	@Override
-  public L labelFor(int source, D datum) {
+  public L labelFor(String source, D datum) {
 	  L goldLabel = goldLabelProvider.labelFor(source, datum);
     Preconditions.checkNotNull(goldLabel,"No gold label available for instance "+source+". Unable to simulate annotation.");
 		return labelErrorFunction.apply(goldLabel);
