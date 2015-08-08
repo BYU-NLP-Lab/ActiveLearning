@@ -83,13 +83,10 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
     // label proportion
     else {
       // use noisy truth to determine which label we measure
-      Integer label = labelProvider.labelFor(source, datum);  // TODO: restore this
-//      Integer label = lastLabel; 
-//      lastLabel = (lastLabel+1) % dataset.getInfo().getNumClasses();
+      Integer label = labelProvider.labelFor(source, datum);  
       // corrupt the label count (according to a gaussian)
       double truth = labelCount(label);
       double effectiveSD = (1/accuracy)*labelProportionSD*dataset.getInfo().getNumDocuments();
-//      double effectiveSD = 1e-10;
       double corruptCount = Math.max(0, new NormalDistribution(rnd, truth, effectiveSD).sample());
       return new ClassificationMeasurements.BasicClassificationLabelProportionMeasurement(annotator, corruptCount, 1, label);
     }
