@@ -157,7 +157,7 @@ public class DefaultAnnotationServer<D, L> implements AnnotationServer<D, L> {
 				return RequestInstanceResponse.noInstances();
 			}
 			InstanceForAnnotation<D> ifa =
-					new InstanceForAnnotation<D>(idCounter.incrementAndGet(), ar.getInstance().getData(), ar.getInstance().getInstanceId());
+					new InstanceForAnnotation<D>(idCounter.incrementAndGet(), ar.getInstance().getData(), ar.getInstance().getSource());
 			outstandingRequests.put(ifa.getRequestId(), ar);
 			return RequestInstanceResponse.success(ifa);
 		} catch (InterruptedException e) {

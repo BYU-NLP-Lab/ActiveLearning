@@ -6,7 +6,6 @@ import java.util.Random;
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.deeplearning4j.berkeley.Counter;
-import org.deeplearning4j.berkeley.PriorityQueue;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
@@ -28,8 +27,7 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
   
   private FallibleAnnotationProvider<D, Integer> labelProvider;
   private Dataset dataset;
-//  private RandomGenerator rnd;
-  private Random rnd;
+  private RandomGenerator rnd;
   private int annotator;
   private Counter<Integer> labelCounter;
   private double accuracy;
@@ -42,20 +40,21 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
     this.dataset=dataset;
     this.annotator=annotator;
     this.accuracy=accuracy;
-    this.rnd=new Random(rnd.nextLong());
+    this.rnd=rnd;
   }
   
+  private static int lastLabel = 0;
   @Override
   public Measurement labelFor(String source, D datum) {
     double choice = rnd.nextDouble();
     
     // how much of which kinds of error?
     Map<String,Double> proportions = Maps.newHashMap();
-    proportions.put("annotation", .5);
-    proportions.put("labeled_predicate", 0.5);
-    proportions.put("label_proportion", 0.);
+    proportions.put("annotation", 0.5);
+    proportions.put("labeled_predicate", 0.4);
+    proportions.put("label_proportion", 0.1);
     Preconditions.checkState(
-        Math.abs(1-DoubleArrays.sum(DoubleArrays.fromDoubleCollection(proportions.values())))<1e-20,
+        Math.abs(1-DoubleArrays.sum(DoubleArrays.fromDoubleCollection(proportions.values())))<1e-15,
         "Illegal Measurement proportions! Must sum to approx 1");
     
     // regular annotation
@@ -77,18 +76,21 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
       // noisy word^label count
       double effectiveSD = (1/accuracy)*labelPredicateSD*perWordCounts[wordIndex];
       double trueCount = perWordClassCounts[wordIndex][label];
-      double corruptCount = Math.max(0, new NormalDistribution(trueCount, effectiveSD).sample()); 
+      double corruptCount = Math.max(0, new NormalDistribution(rnd, trueCount, effectiveSD).sample()); 
       return new ClassificationMeasurements.BasicClassificationLabeledPredicateMeasurement(annotator, corruptCount, 1.0, label, word);
     }
     
     // label proportion
     else {
       // use noisy truth to determine which label we measure
-      Integer label = labelProvider.labelFor(source, datum); 
+      Integer label = labelProvider.labelFor(source, datum);  // TODO: restore this
+//      Integer label = lastLabel; 
+//      lastLabel = (lastLabel+1) % dataset.getInfo().getNumClasses();
       // corrupt the label count (according to a gaussian)
       double truth = labelCount(label);
       double effectiveSD = (1/accuracy)*labelProportionSD*dataset.getInfo().getNumDocuments();
-      double corruptCount = Math.max(0, new NormalDistribution(truth, effectiveSD).sample());
+//      double effectiveSD = 1e-10;
+      double corruptCount = Math.max(0, new NormalDistribution(rnd, truth, effectiveSD).sample());
       return new ClassificationMeasurements.BasicClassificationLabelProportionMeasurement(annotator, corruptCount, 1, label);
     }
 
@@ -114,10 +116,9 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
           wordLabelPairs.incrementCount(Pair.of(w, l), perWordClassDistribution[w][l]); 
         }
       }
-//      wordLabelPairs.normalize();
     }
     
-    return wordLabelPairs.sample(rnd);
+    return wordLabelPairs.sample(new Random(rnd.nextLong()));
   }
   
   private double labelCount(Integer label){

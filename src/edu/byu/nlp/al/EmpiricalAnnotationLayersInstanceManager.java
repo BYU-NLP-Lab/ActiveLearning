@@ -63,7 +63,7 @@ public class EmpiricalAnnotationLayersInstanceManager <D, L> extends AbstractIns
     for (FlatInstance<D, L> inst: instances){
       // find all annotations associated with this item
       Stack<FlatInstance<D, L>> anns = new Stack<>();
-      anns.addAll(annotations.getAnnotationsFor(inst.getInstanceId(), inst.getData()).values());
+      anns.addAll(annotations.getAnnotationsFor(inst.getSource(), inst.getData()).values());
       // scrambled per-instance arrival times
       Collections.shuffle(anns,new Random(rnd.nextLong()));
       perInstanceAnnotationLists.put(inst.getSource(), anns);
@@ -131,11 +131,11 @@ public class EmpiricalAnnotationLayersInstanceManager <D, L> extends AbstractIns
 
   public static EmpiricalAnnotationLayersInstanceManager<SparseFeatureVector, Integer> newManager(
           Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations, 
-          boolean recordMeasurements, RandomGenerator rnd) {
+          RandomGenerator rnd) {
     
     List<FlatInstance<SparseFeatureVector, Integer>> instances = Datasets.instancesIn(dataset);
     return new EmpiricalAnnotationLayersInstanceManager<SparseFeatureVector, Integer>(instances,annotations,
-          new DatasetAnnotationRecorder(dataset, recordMeasurements), rnd);
+          new DatasetAnnotationRecorder(dataset), rnd);
   }
   
 }

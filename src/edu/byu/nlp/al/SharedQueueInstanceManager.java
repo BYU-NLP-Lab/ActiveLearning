@@ -67,7 +67,7 @@ public class SharedQueueInstanceManager<D, L> extends AbstractInstanceManager<D,
 	
 	// This class assumes ownership of Instances; in particular, instance.getAnnotations() should not be modified.
 	public static SharedQueueInstanceManager<SparseFeatureVector, Integer> newProvider(Dataset dataset,
-	        Scorer<SparseFeatureVector, Integer> scorer, boolean recordMeasurements) {
+	        Scorer<SparseFeatureVector, Integer> scorer) {
 	  
 	  List<FlatInstance<SparseFeatureVector, Integer>> instances = Datasets.annotationsIn(dataset);
 	  
@@ -77,7 +77,7 @@ public class SharedQueueInstanceManager<D, L> extends AbstractInstanceManager<D,
             BlockingSortedListHeap.from(Iterables.transform(instances, new DefaultScore<SparseFeatureVector, Integer>()));
       new Thread(new ScoringThread<SparseFeatureVector, Integer>(q, scorer), "Scorer").start();
     return new SharedQueueInstanceManager<SparseFeatureVector, Integer>(q, instances, 
-        new DatasetAnnotationRecorder(dataset, recordMeasurements));
+        new DatasetAnnotationRecorder(dataset));
 	}
 
 	/** {@inheritDoc} */

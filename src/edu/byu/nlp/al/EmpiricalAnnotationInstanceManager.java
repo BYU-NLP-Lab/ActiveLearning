@@ -47,7 +47,7 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
 	  queue = Lists.newArrayList();
 	  for (FlatInstance<D, L> inst: instances){
 	    // add each annotation associated with this item to the queue 
-	    queue.addAll(annotations.getAnnotationsFor(inst.getInstanceId(), inst.getData()).values());
+	    queue.addAll(annotations.getAnnotationsFor(inst.getSource(), inst.getData()).values());
 	  }
 	  // sort the annotation queue based on annotation order
 	  Datasets.sortAnnotations(queue);
@@ -91,11 +91,11 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
 	
 
   public static EmpiricalAnnotationInstanceManager<SparseFeatureVector, Integer> newManager(
-          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations, boolean recordMeasurements) {
+          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations) {
     
     List<FlatInstance<SparseFeatureVector, Integer>> instances = Datasets.instancesIn(dataset);
     return new EmpiricalAnnotationInstanceManager<SparseFeatureVector, Integer>(instances,annotations,
-          new DatasetAnnotationRecorder(dataset, recordMeasurements));
+          new DatasetAnnotationRecorder(dataset));
   }
   
 }

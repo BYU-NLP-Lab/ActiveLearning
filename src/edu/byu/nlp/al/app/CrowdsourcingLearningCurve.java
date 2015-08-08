@@ -662,7 +662,7 @@ public class CrowdsourcingLearningCurve {
 	}
   }
 
-
+  private static int nextAnnotatorId = 0;
   /**
    * @param returnLabeledAccuracy if false, returns log joint
    * @return
@@ -699,8 +699,8 @@ public class CrowdsourcingLearningCurve {
     logger.info("hyperparameters: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
 
     
-    // TODO; data with known and observed labels is suitable for adding as extra supervision to models (assuming they know how to deal with it)
-    Dataset observedLabelsTrainingData = Datasets.divideInstancesWithObservedLabels(trainingData).getFirst();
+//    // TODO; data with known and observed labels is suitable for adding as extra supervision to models (assuming they know how to deal with it)
+//    Dataset observedLabelsTrainingData = Datasets.divideInstancesWithObservedLabels(trainingData).getFirst();
     // data with known but concealed labels is suitable for simulating annotators and doing evaluation 
     Dataset concealedLabelsTrainingData = Datasets.divideInstancesWithLabels(trainingData).getFirst();
 
@@ -736,29 +736,28 @@ public class CrowdsourcingLearningCurve {
     // since only annotations mutate and all code except for crowdsourcing training 
     // code ignores annotations, but it's worth noting.
     /////////////////////////////////////////////////////////////////////
-    boolean recordMeasurements = labelingStrategy == LabelingStrategy.MEAS;
     InstanceManager<SparseFeatureVector, Integer> instanceManager;
     LabelChooser baselineChooser;
     switch(annotationStrategy){
     case ab:
       baselineChooser = new ArbiterVote(arbiters, algRnd);
-      instanceManager = ABArbiterInstanceManager.newManager(trainingData, k==1, arbiters, recordMeasurements);
+      instanceManager = ABArbiterInstanceManager.newManager(trainingData, k==1, arbiters);
       break;
     case grr:
       baselineChooser = new MajorityVote(algRnd);
-      instanceManager = GeneralizedRoundRobinInstanceManager.newManager(k, trainingData, new DatasetAnnotationRecorder(trainingData,recordMeasurements), dataRnd);
+      instanceManager = GeneralizedRoundRobinInstanceManager.newManager(k, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
       break;
     case kdeep:
       baselineChooser = new MajorityVote(algRnd);
-      instanceManager = NDeepInstanceManager.newManager(k, 1, trainingData, new DatasetAnnotationRecorder(trainingData,recordMeasurements), dataRnd);
+      instanceManager = NDeepInstanceManager.newManager(k, 1, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
       break;
     case real:
       baselineChooser = new MajorityVote(algRnd);
-      instanceManager = EmpiricalAnnotationInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations, recordMeasurements);
+      instanceManager = EmpiricalAnnotationInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations);
       break;
     case reallayers:
       baselineChooser = new MajorityVote(algRnd);
-      instanceManager = EmpiricalAnnotationLayersInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations, recordMeasurements, dataRnd);
+      instanceManager = EmpiricalAnnotationLayersInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations, dataRnd);
       break;
     default:
         throw new IllegalArgumentException("Unknown annotation strategy: " + annotationStrategy.name());
@@ -773,7 +772,7 @@ public class CrowdsourcingLearningCurve {
     // Annotate until the eval point
     /////////////////////////////////////////////////////////////////////
     annotationsOut.println("source, annotator_id, annotation, annotation_time_nanos, wait_time_nanos"); // annotation file header
-    for (int numAnnotations = 0; numAnnotations<maxAnnotations && numAnnotations<=evalPoint; numAnnotations++) {
+    for (int numAnnotations = 0; numAnnotations<maxAnnotations && numAnnotations<evalPoint; numAnnotations++) {
 
       // Get an instance and annotator assignment
       AnnotationRequest<SparseFeatureVector, Integer> request = null;
@@ -784,7 +783,8 @@ public class CrowdsourcingLearningCurve {
       // 2) the realistic annotator enforces historical order.
       while (request==null && !instanceManager.isDone()){
         // Pick an annotator at random
-        int annotatorId = dataRnd.nextInt(annotators.size());
+        int annotatorId = dataRnd.nextInt(annotators.size()); // TODO: restore this
+//        int annotatorId = ((int)Math.floor(numAnnotations/trainingData.getInfo().getNumClasses()))%(annotators.size()); 
         try {
           request = instanceManager.requestInstanceFor(annotatorId, 1, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
