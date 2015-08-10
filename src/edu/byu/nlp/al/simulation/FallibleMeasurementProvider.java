@@ -34,12 +34,17 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
   private double[][] perWordClassCounts;
   private double[] perWordCounts;
   private Counter<Pair<Integer,Integer>> wordLabelPairs;
+  private boolean generateLabeledPredicates;
+  private boolean generateLabelProportions;
 
-  public FallibleMeasurementProvider(FallibleAnnotationProvider<D,Integer> labelProvider, Dataset dataset, int annotator, double accuracy, RandomGenerator rnd){
+  public FallibleMeasurementProvider(FallibleAnnotationProvider<D,Integer> labelProvider, Dataset dataset, int annotator, double accuracy,
+      boolean generateLabeledPredicates, boolean generateLabelProportions, RandomGenerator rnd){
     this.labelProvider=labelProvider;
     this.dataset=dataset;
     this.annotator=annotator;
     this.accuracy=accuracy;
+    this.generateLabeledPredicates=generateLabeledPredicates;
+    this.generateLabelProportions=generateLabelProportions;
     this.rnd=rnd;
   }
   
@@ -51,23 +56,24 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
     long endtime = starttime + 1000;
     
     // how much of which kinds of error?
-    Map<String,Double> proportions = Maps.newHashMap();
-    proportions.put("annotation", 0.5);
-    proportions.put("labeled_predicate", 0.4);
-    proportions.put("label_proportion", 0.1);
-    Preconditions.checkState(
-        Math.abs(1-DoubleArrays.sum(DoubleArrays.fromDoubleCollection(proportions.values())))<1e-15,
-        "Illegal Measurement proportions! Must sum to approx 1");
+    double[] measurementProportions = new double[]{0.1, 0.8, 0.1};
+    if (!generateLabeledPredicates){
+      measurementProportions[1] = 0;
+    }
+    if (!generateLabelProportions){
+      measurementProportions[2] = 0;
+    }
+    DoubleArrays.normalizeToSelf(measurementProportions);
     
     // regular annotation
-    choice -= proportions.get("annotation");
+    choice -= measurementProportions[0];
     if (choice<=0){
       Integer label = labelProvider.labelFor(source, datum);
       return new ClassificationMeasurements.BasicClassificationAnnotationMeasurement(annotator, value, defaultConfidence, source, label, starttime, endtime);
     }
     
     // labeled predicate
-    choice -= proportions.get("labeled_predicate");
+    choice -= measurementProportions[1];
     if (choice<=0){
       // choose word^label pair
       Pair<Integer, Integer> wordLabel = sampleWordClassPair(labelPredicateSmoothing);

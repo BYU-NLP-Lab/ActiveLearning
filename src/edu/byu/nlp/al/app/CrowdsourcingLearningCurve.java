@@ -740,14 +740,17 @@ public class CrowdsourcingLearningCurve {
     LabelChooser baselineChooser;
     switch(annotationStrategy){
     case ab:
+      trainingData = Datasets.divideInstancesWithLabels(trainingData).getFirst(); // can't simulate annotations for unlabeled instances
       baselineChooser = new ArbiterVote(arbiters, algRnd);
       instanceManager = ABArbiterInstanceManager.newManager(trainingData, k==1, arbiters);
       break;
     case grr:
+      trainingData = Datasets.divideInstancesWithLabels(trainingData).getFirst(); // can't simulate annotations for unlabeled instances
       baselineChooser = new MajorityVote(algRnd);
       instanceManager = GeneralizedRoundRobinInstanceManager.newManager(k, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
       break;
     case kdeep:
+      trainingData = Datasets.divideInstancesWithLabels(trainingData).getFirst(); // can't simulate annotations for unlabeled instances
       baselineChooser = new MajorityVote(algRnd);
       instanceManager = NDeepInstanceManager.newManager(k, 1, trainingData, new DatasetAnnotationRecorder(trainingData), dataRnd);
       break;
@@ -1099,7 +1102,10 @@ public class CrowdsourcingLearningCurve {
           new ProbabilisticLabelErrorFunction<Integer>(new ConfusionMatrixDistribution(annotatorConfusions[j]),rnd);
       FallibleAnnotationProvider<SparseFeatureVector,Integer> fallibleLabelProvider = 
           new FallibleAnnotationProvider<SparseFeatureVector, Integer>(goldLabelProvider, labelErrorFunction);
-      FallibleMeasurementProvider<SparseFeatureVector> annotator = new FallibleMeasurementProvider<>(fallibleLabelProvider, concealedLabeledTrainingData, j, annotatorAccuracy.getAccuracies()[j], rnd);
+      boolean generateNonTrivialMeasurements = labelingStrategy==LabelingStrategy.MEAS; 
+      FallibleMeasurementProvider<SparseFeatureVector> annotator = new FallibleMeasurementProvider<>(
+          fallibleLabelProvider, concealedLabeledTrainingData, j, annotatorAccuracy.getAccuracies()[j], 
+          generateNonTrivialMeasurements, generateNonTrivialMeasurements, rnd);
       annotators.add(annotator);
     }
     return annotators;
