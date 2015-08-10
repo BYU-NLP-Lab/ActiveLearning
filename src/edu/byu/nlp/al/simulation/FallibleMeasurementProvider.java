@@ -43,10 +43,12 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
     this.rnd=rnd;
   }
   
-  private static int lastLabel = 0;
   @Override
   public Measurement labelFor(String source, D datum) {
     double choice = rnd.nextDouble();
+    double value = 1, defaultConfidence = 1;
+    long starttime = rnd.nextLong();
+    long endtime = starttime + 1000;
     
     // how much of which kinds of error?
     Map<String,Double> proportions = Maps.newHashMap();
@@ -61,7 +63,7 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
     choice -= proportions.get("annotation");
     if (choice<=0){
       Integer label = labelProvider.labelFor(source, datum);
-      return new ClassificationMeasurements.BasicClassificationAnnotationMeasurement(annotator, 1.0, 1.0, source, label) ;
+      return new ClassificationMeasurements.BasicClassificationAnnotationMeasurement(annotator, value, defaultConfidence, source, label, starttime, endtime);
     }
     
     // labeled predicate
@@ -77,7 +79,7 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
       double effectiveSD = (1/accuracy)*labelPredicateSD*perWordCounts[wordIndex];
       double trueCount = perWordClassCounts[wordIndex][label];
       double corruptCount = Math.max(0, new NormalDistribution(rnd, trueCount, effectiveSD).sample()); 
-      return new ClassificationMeasurements.BasicClassificationLabeledPredicateMeasurement(annotator, corruptCount, 1.0, label, word);
+      return new ClassificationMeasurements.BasicClassificationLabeledPredicateMeasurement(annotator, corruptCount, defaultConfidence, label, word, starttime, endtime);
     }
     
     // label proportion
@@ -88,7 +90,7 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
       double truth = labelCount(label);
       double effectiveSD = (1/accuracy)*labelProportionSD*dataset.getInfo().getNumDocuments();
       double corruptCount = Math.max(0, new NormalDistribution(rnd, truth, effectiveSD).sample());
-      return new ClassificationMeasurements.BasicClassificationLabelProportionMeasurement(annotator, corruptCount, 1, label);
+      return new ClassificationMeasurements.BasicClassificationLabelProportionMeasurement(annotator, corruptCount, defaultConfidence, label, starttime, endtime);
     }
 
   }
