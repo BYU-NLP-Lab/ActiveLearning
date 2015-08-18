@@ -1,14 +1,11 @@
 package edu.byu.nlp.al.simulation;
 
-import java.util.Map;
-import java.util.Random;
-
 import org.apache.commons.math3.distribution.NormalDistribution;
+import org.apache.commons.math3.random.RandomAdaptor;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.deeplearning4j.berkeley.Counter;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
 
 import edu.byu.nlp.crowdsourcing.LabelProvider;
 import edu.byu.nlp.data.measurements.ClassificationMeasurements;
@@ -34,17 +31,23 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
   private double[][] perWordClassCounts;
   private double[] perWordCounts;
   private Counter<Pair<Integer,Integer>> wordLabelPairs;
-  private boolean generateLabeledPredicates;
-  private boolean generateLabelProportions;
+  private double annotationRate;
+  private double labeledPredicateRate;
+  private double labelProportionRate;
 
   public FallibleMeasurementProvider(FallibleAnnotationProvider<D,Integer> labelProvider, Dataset dataset, int annotator, double accuracy,
-      boolean generateLabeledPredicates, boolean generateLabelProportions, RandomGenerator rnd){
+      double annotationRate, double labeledPredicateRate, double labelProportionRate, RandomGenerator rnd){
+    Preconditions.checkArgument(annotationRate>=0);
+    Preconditions.checkArgument(labeledPredicateRate>=0);
+    Preconditions.checkArgument(labelProportionRate>=0);
+    Preconditions.checkArgument(annotationRate+labeledPredicateRate+labelProportionRate>0);
     this.labelProvider=labelProvider;
     this.dataset=dataset;
     this.annotator=annotator;
     this.accuracy=accuracy;
-    this.generateLabeledPredicates=generateLabeledPredicates;
-    this.generateLabelProportions=generateLabelProportions;
+    this.annotationRate=annotationRate;
+    this.labeledPredicateRate=labeledPredicateRate;
+    this.labelProportionRate=labelProportionRate;
     this.rnd=rnd;
   }
   
@@ -56,13 +59,8 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
     long endtime = starttime + 1000;
     
     // how much of which kinds of error?
-    double[] measurementProportions = new double[]{0.1, 0.8, 0.1};
-    if (!generateLabeledPredicates){
-      measurementProportions[1] = 0;
-    }
-    if (!generateLabelProportions){
-      measurementProportions[2] = 0;
-    }
+    // [annotations, labeled predicates, label proportions]
+    double[] measurementProportions = new double[]{annotationRate, labeledPredicateRate, labelProportionRate};
     DoubleArrays.normalizeToSelf(measurementProportions);
     
     // regular annotation
@@ -123,7 +121,7 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
       }
     }
     
-    return wordLabelPairs.sample(new Random(rnd.nextLong()));
+    return wordLabelPairs.sample(new RandomAdaptor(rnd));
   }
   
   private double labelCount(Integer label){

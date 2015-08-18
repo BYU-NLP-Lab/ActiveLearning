@@ -20,17 +20,13 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.math3.analysis.MultivariateFunction;
-import org.apache.commons.math3.optim.PointValuePair;
 import org.apache.commons.math3.random.MersenneTwister;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
@@ -40,7 +36,6 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 
 import edu.byu.nlp.al.ABArbiterInstanceManager;
@@ -52,7 +47,6 @@ import edu.byu.nlp.al.EmpiricalAnnotationLayersInstanceManager;
 import edu.byu.nlp.al.GeneralizedRoundRobinInstanceManager;
 import edu.byu.nlp.al.InstanceManager;
 import edu.byu.nlp.al.NDeepInstanceManager;
-import edu.byu.nlp.al.RateLimitedAnnotatorInstanceManager;
 import edu.byu.nlp.al.simulation.FallibleAnnotationProvider;
 import edu.byu.nlp.al.simulation.FallibleMeasurementProvider;
 import edu.byu.nlp.al.simulation.GoldLabelProvider;
@@ -77,10 +71,8 @@ import edu.byu.nlp.classify.eval.ConfusionMatrixDistribution;
 import edu.byu.nlp.classify.eval.OverallAccuracy;
 import edu.byu.nlp.classify.eval.Predictions;
 import edu.byu.nlp.classify.eval.ProbabilisticLabelErrorFunction;
-import edu.byu.nlp.classify.util.ModelTraining;
 import edu.byu.nlp.classify.util.ModelTraining.IntermediatePredictionLogger;
 import edu.byu.nlp.classify.util.ModelTraining.OperationType;
-import edu.byu.nlp.classify.util.ModelTraining.SupportsTrainingOperations;
 import edu.byu.nlp.crowdsourcing.AnnotatorAccuracySetting;
 import edu.byu.nlp.crowdsourcing.ArbiterVote;
 import edu.byu.nlp.crowdsourcing.EmpiricalMeasurementProvider;
@@ -130,17 +122,11 @@ import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
 import edu.byu.nlp.dataset.Datasets;
 import edu.byu.nlp.dataset.Datasets.AnnotatorClusterMethod;
-import edu.byu.nlp.io.Files2;
-import edu.byu.nlp.io.Paths;
-import edu.byu.nlp.math.optimize.MultivariateOptimizers;
-import edu.byu.nlp.math.optimize.MultivariateOptimizers.OptimizationMethod;
-import edu.byu.nlp.util.Arrays;
 import edu.byu.nlp.util.DoubleArrays;
 import edu.byu.nlp.util.Functions2;
 import edu.byu.nlp.util.Indexer;
 import edu.byu.nlp.util.Matrices;
 import edu.byu.nlp.util.Pair;
-import edu.byu.nlp.util.Strings;
 import edu.byu.nlp.util.TimedEvent;
 import edu.byu.nlp.util.jargparser.ArgumentParser;
 import edu.byu.nlp.util.jargparser.ArgumentValues;
@@ -305,6 +291,18 @@ public class CrowdsourcingLearningCurve {
   @Option
   private static AnnotationStrategy annotationStrategy = AnnotationStrategy.kdeep;
   
+  @Option(help="when using empirical annotations, how often should we insert a non-annotation measurement (since they don't usually have timestamps)")
+  private static int measEvalPoint = 0; 
+  private static boolean prioritizeLabelProportions = true; // move label proportion judgments to the front of the line
+  private static String trustedMeasurementAnnotator = "123456789"; // name of an annotator who should be given strong prior trust
+  @Option
+  private static double measSimAnnotationRate = 0.5;
+  @Option
+  private static double measSimPredicateRate = 0.4;
+  @Option
+  private static double measSimProportionRate = 0.1;
+  
+  
   /* -------------  Model Params  ------------------- */
   
   @Option
@@ -370,6 +368,7 @@ public class CrowdsourcingLearningCurve {
   @Option(help = "Group annotators using kmeans clustering on their empirical confusion matrices wrt majority vote."
       + "If -1, don't do any annotator clustering.")
   public static int numAnnotatorClusters = -1;
+
   
   private static PrintWriter prepareOutput(String path, PrintWriter defaultWriter) throws IOException{
     if (path==null){
@@ -389,10 +388,10 @@ public class CrowdsourcingLearningCurve {
     if (labelingStrategy.toString().contains("LDA")){
       Preconditions.checkArgument(numTopics>0,"LDA-based strategies require numTopics>0");
     }
-    Preconditions.checkArgument(evalPoint>0,"evalPoint must be greater than 0");
-    Preconditions.checkArgument(new File(basedir).exists(),"basedir must exist "+basedir);
-    Preconditions.checkArgument(new File(basedir).isDirectory(),"basedir must be a directory "+basedir);
-    Preconditions.checkArgument(new File(basedir).exists(),"basedir must exist "+basedir);
+    Preconditions.checkArgument(evalPoint>0 || measEvalPoint>0 ,"evalPoint must be greater than 0");
+    if (new File(basedir).exists()){
+      Preconditions.checkArgument(new File(basedir).isDirectory(),"basedir must be a directory "+basedir);
+    }
     Preconditions.checkArgument(annotateTopKChoices>0, "--annotate-top-k-choices must be greater than 0");
     
     // this generator deals with data creation (so that all runs with the same annotation strategy
@@ -474,6 +473,9 @@ public class CrowdsourcingLearningCurve {
 
     stopwatchData.stop();
     
+
+
+    
     boolean returnLabeledAccuracy = true;
     // initialize model variables
     SerializableCrowdsourcingState initialization = trainEval(nullWriter(), nullWriter(), nullWriter(), nullWriter(),
@@ -482,14 +484,14 @@ public class CrowdsourcingLearningCurve {
             bTheta, bMu, bPhi, bGamma, cGamma, 
             lambda, evalPoint, initializationStrategy, initializationTraining, returnLabeledAccuracy);
     
-    // cross-validation sweep unannotated-document-weight (optional)
-    if (validationPercent>0){
-    	MDC.put("context", "hyperopt");
-    	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
-    	ModelTraining.doOperations(hyperparamTraining, 
-    	    new CrowdsourcingHyperparameterOptimizer(initialization, validationData, annotations, validationEvalPoint));
-    	MDC.remove("context");
-    }
+//    // cross-validation sweep unannotated-document-weight (optional)
+//    if (validationPercent>0){
+//    	MDC.put("context", "hyperopt");
+//    	int validationEvalPoint = (int)Math.round(validationData.getInfo().getNumDocuments()/((double)trainingData.getInfo().getNumDocuments()) * evalPoint);
+//    	ModelTraining.doOperations(hyperparamTraining, 
+//    	    new CrowdsourcingHyperparameterOptimizer(initialization, validationData, annotations, validationEvalPoint));
+//    	MDC.remove("context");
+//    }
 
     // final go
     SerializableCrowdsourcingState finalState = trainEval(debugOut, annotationsOut, tabularPredictionsOut, resultsOut,
@@ -498,8 +500,8 @@ public class CrowdsourcingLearningCurve {
         bTheta, bMu, bPhi, bGamma, cGamma, 
         lambda, evalPoint, labelingStrategy, training, returnLabeledAccuracy);
     
-    // serialize state out
-    finalState.serializeTo(serializeOut);
+//    // serialize state out
+//    finalState.serializeTo(serializeOut);
     
     debugOut.close();
     annotationsOut.close();
@@ -509,160 +511,7 @@ public class CrowdsourcingLearningCurve {
   }
 
   
-  private static class CrowdsourcingHyperparameterOptimizer implements SupportsTrainingOperations{
-	private Dataset validationData;
-	private EmpiricalAnnotations<SparseFeatureVector, Integer> annotations;
-	private int validationEvalPoint;
-	private Set<Double> bThetaGrid = Sets.newHashSet(0.01, 0.1, 0.5, 1.0);
-	private Set<Double> bPhiGrid = Sets.newHashSet(0.01, 0.1, 0.5, 1.0);
-	private Set<Double> bGammaGrid = Sets.newHashSet(0.1, 0.5, 0.9);
-	private Set<Double> cGammaGrid = Sets.newHashSet(.1, 1.0, 10.0, 50.0);
-	private double bTheta,bPhi,bGamma,cGamma; // determined at run time
-	private List<Set<Double>> grid = null; // determined at run time
-	private double[] startPoint = null; // determined at run time
-	private double[][] boundaries = null; // determined at run time
-	private SerializableCrowdsourcingState initialization;
-	public CrowdsourcingHyperparameterOptimizer(
-		  SerializableCrowdsourcingState initialization, 
-	      Dataset validationData,
-	      EmpiricalAnnotations<SparseFeatureVector, Integer> annotations,
-	      int evalPoint){
-		  this.initialization=initialization;
-		  this.validationData=validationData;
-		  this.annotations=annotations;
-		  this.validationEvalPoint=evalPoint;
-	  }
-	@Override
-	public Double sample(String variableName, int iteration, String[] args) {
-		throw new UnsupportedOperationException("not implemented");
-	}
-  @Override
-  public DatasetLabeler getIntermediateLabeler() {
-    throw new UnsupportedOperationException("not implemented");
-  }
-	/**
-	 * args are in the form maximize-1-[params]-[maxiterations]-[training]
-	 * where [params] has a comma-separated list of parameter names to be updated
-	 * and [training] has the same form as what is given to the --training param. 
-	 * (the global --training args are used as default values).
-	 */
-	@Override
-	public Double maximize(final String parameterNames, int iteration, final String[] args) {
-		// parameterNames: comma-separated list of param names to be updated
-		importParams(parameterNames);
-		preparePointsAndBoundaries(parameterNames);
-		// args[0]: hyperparam optimization strategy
-		OptimizationMethod optMethod = (args.length==0)? OptimizationMethod.BOBYQA: OptimizationMethod.valueOf(args[0]);
-		// args[1]: how many hyperparam iterations?
-		int maxEvaluations = (args.length>=2)? Integer.parseInt(args[1]): 50;
-		// args[2]: labeling strategy (guiding hyperparam search) 
-		final LabelingStrategy hyperLabelingStrategy = (args.length>=3)? LabelingStrategy.valueOf(args[2]): labelingStrategy;
-		// args[3]: evaluation criterion (either 'acc' for supervised labeled accuracy or else 'joint' for unsupervised log joint)
-		final boolean returnLabeledAccuracy = (args.length>=4)? args[3].toLowerCase().equals("acc"): true;
-		// args[4:]: training strategy (guiding hyperparam search) 
-		final String hyperTraining = (args.length>=5)? Strings.join(Arrays.subsequence(args,4),"-"): training;
-		
-		//////////////////////////////////////
-	    // Optimize ItemResp hyperparams (theta, gamma)
-		//////////////////////////////////////
-		PointValuePair optimum = MultivariateOptimizers.optimize(optMethod, maxEvaluations, startPoint, boundaries, 
-	    		// grid
-				grid,
-				// objective function
-				new MultivariateFunction(){
-					private int iterations = 0;
-			        @Override
-			        public double value(double[] point) {
-			          iterations++;
-			    	  adoptParams(parameterNames, point); // writes values onto bTheta, bPhi, etc
-			          
-			          // ensure results are consistent by using same seed
-			          RandomGenerator algRnd = new MersenneTwister(algorithmSeed);
-			          RandomGenerator dataRnd = new MersenneTwister(dataSeed);
-			          PrintWriter nullPipe = nullWriter();
-			          boolean onlyAnnotateLabeledData = true;
-			          double val = trainEval(nullPipe, nullPipe, nullPipe, nullPipe, 
-			              initialization, dataRnd, algRnd, null, // null stopwatch
-			              validationData, onlyAnnotateLabeledData,  
-			              Datasets.emptyDataset(validationData.getInfo()), // no test data 
-			              annotations, 
-			              bTheta, CrowdsourcingLearningCurve.bMu, bPhi, bGamma, cGamma, CrowdsourcingLearningCurve.lambda, validationEvalPoint,
-			              hyperLabelingStrategy, hyperTraining, returnLabeledAccuracy).getGoodness(); // use indicated training regime
-			          logger.info("ItemResp hyperparam search iteration "+iterations+" {bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma+"}="+val);
-			          return val;
-		        }
-		       });
 
-		// adopt the best values
-		adoptParams(parameterNames, optimum.getPointRef());
-	    logger.info("final hyperparameter values: bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma);
-	    // export the best values to static variables
-	    exportParams(parameterNames); 
-	    return null; // return value is ignored 
-	}
-	private void preparePointsAndBoundaries(String parameterNames){
-		List<Double> startPointList = Lists.newArrayList();
-		List<Double> boundariesStartList = Lists.newArrayList();
-		List<Double> boundariesEndList = Lists.newArrayList();
-		grid = Lists.newArrayList();
-		if (parameterNames.contains("btheta")){
-			startPointList.add(CrowdsourcingLearningCurve.bTheta);
-			boundariesStartList.add(edu.byu.nlp.util.Sets.min(bThetaGrid));
-			boundariesEndList.add(edu.byu.nlp.util.Sets.max(bThetaGrid));
-			grid.add(bThetaGrid);
-		}
-		if (parameterNames.contains("bphi")){
-			startPointList.add(CrowdsourcingLearningCurve.bPhi);
-			boundariesStartList.add(edu.byu.nlp.util.Sets.min(bPhiGrid));
-			boundariesEndList.add(edu.byu.nlp.util.Sets.max(bPhiGrid));
-			grid.add(bPhiGrid);
-		} 
-		if (parameterNames.contains("bgamma")){
-			startPointList.add(CrowdsourcingLearningCurve.bGamma);
-			boundariesStartList.add(edu.byu.nlp.util.Sets.min(bGammaGrid));
-			boundariesEndList.add(edu.byu.nlp.util.Sets.max(bGammaGrid));
-			grid.add(bGammaGrid);
-		} 
-		if (parameterNames.contains("cgamma")){
-			startPointList.add(CrowdsourcingLearningCurve.cGamma);
-			boundariesStartList.add(edu.byu.nlp.util.Sets.min(cGammaGrid));
-			boundariesEndList.add(edu.byu.nlp.util.Sets.max(cGammaGrid));
-			grid.add(cGammaGrid);
-		} 
-		startPoint = DoubleArrays.fromList(startPointList);
-		boundaries = new double[][]{DoubleArrays.fromList(boundariesStartList), DoubleArrays.fromList(boundariesEndList)};
-		Preconditions.checkState(startPoint.length>0,"no valid hyperparameters were recognized in the string \""+parameterNames);
-	}
-	private void exportParams(String parameterNames){
-		CrowdsourcingLearningCurve.bTheta = this.bTheta;
-		CrowdsourcingLearningCurve.bPhi = this.bPhi;
-		CrowdsourcingLearningCurve.bGamma = this.bGamma;
-		CrowdsourcingLearningCurve.cGamma = this.cGamma;
-	}
-	private void importParams(String parameterNames){
-		this.bTheta = CrowdsourcingLearningCurve.bTheta;
-		this.bPhi = CrowdsourcingLearningCurve.bPhi;
-		this.bGamma = CrowdsourcingLearningCurve.bGamma;
-		this.cGamma = CrowdsourcingLearningCurve.cGamma;
-	}
-	private void adoptParams(String parameterNames, double[] values){
-		int index = 0;
-		if (parameterNames.contains("btheta")){
-			this.bTheta = values[index++];
-		}
-		if (parameterNames.contains("bphi")){
-			this.bPhi = values[index++];
-		} 
-		if (parameterNames.contains("bgamma")){
-			this.bGamma = values[index++];
-		} 
-		if (parameterNames.contains("cgamma")){
-			this.cGamma = values[index++];
-		} 
-	}
-  }
-
-  private static int nextAnnotatorId = 0;
   /**
    * @param returnLabeledAccuracy if false, returns log joint
    * @return
@@ -676,6 +525,7 @@ public class CrowdsourcingLearningCurve {
       double bTheta, double bMu, double bPhi, double bGamma, double cGamma, 
       String lambda, int evalPoint, LabelingStrategy labelingStrategy, String training, 
       boolean returnLabeledAccuracy) {
+    
     
     /////////////////////////////////////////////////////////////////////
     // Prepare data. 
@@ -692,7 +542,7 @@ public class CrowdsourcingLearningCurve {
     
     Preconditions.checkArgument(trainingData.getInfo().getNumDocuments()>0,"Training dataset contained 0 documents. Cannot train a model with no training data.");
     logger.info("======================================================================================");
-    logger.info("============= Train + eval ("+labelingStrategy+" bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma+", evalpoint="+evalPoint+") ==============");
+    logger.info("============= Train + eval ("+labelingStrategy+" bTheta="+bTheta+" bPhi="+bPhi+" bGamma="+bGamma+" cGamma="+cGamma+" evalpoint="+evalPoint+" measEvalPoint="+measEvalPoint+") ==============");
     logger.info("======================================================================================");
     logger.info("data seed "+dataSeed);
     logger.info("algorithm seed "+algorithmSeed);
@@ -706,6 +556,7 @@ public class CrowdsourcingLearningCurve {
 
     Stopwatch stopwatchInference = Stopwatch.createStarted();
 
+    
     /////////////////////////////////////////////////////////////////////
     // Annotators
     /////////////////////////////////////////////////////////////////////
@@ -722,13 +573,12 @@ public class CrowdsourcingLearningCurve {
     	  logger.info("annotator #"+i+" accuracy="+annotatorAccuracy.getAccuracies()[i]);
       }
     }
-
     
     
     /////////////////////////////////////////////////////////////////////
     // Choose an annotation_strategy+label_chooser combination
     // valid options: grr+majority, single+majority, ab-arbitrator+arbitrator
-    //
+    
     // we do annotation on the main training set. Annotations are added in-place, 
     // mutating the dataset. Note that since we didn't do a deep copy, all splits 
     // of the dataset and all references to the datasetinstance objects should be 
@@ -756,26 +606,27 @@ public class CrowdsourcingLearningCurve {
       break;
     case real:
       baselineChooser = new MajorityVote(algRnd);
-      instanceManager = EmpiricalAnnotationInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations);
+      instanceManager = EmpiricalAnnotationInstanceManager.newManager(
+          onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations, evalPoint, measEvalPoint, prioritizeLabelProportions, dataRnd);
       break;
     case reallayers:
       baselineChooser = new MajorityVote(algRnd);
-      instanceManager = EmpiricalAnnotationLayersInstanceManager.newManager(onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations, dataRnd);
+      instanceManager = EmpiricalAnnotationLayersInstanceManager.newManager(
+          onlyAnnotateLabeledData? concealedLabelsTrainingData: trainingData, annotations, evalPoint, measEvalPoint, prioritizeLabelProportions, dataRnd);
       break;
     default:
         throw new IllegalArgumentException("Unknown annotation strategy: " + annotationStrategy.name());
     }
-    // rate limited annotators
-    if (annotatorAccuracy!=null){
-    	instanceManager = new RateLimitedAnnotatorInstanceManager<>(instanceManager, identityAnnotatorRatesMap(annotatorAccuracy.getAnnotatorRates()), dataRnd);
-    }
-
+//    // rate limited annotators
+//    if (annotatorAccuracy!=null){
+//    	instanceManager = new RateLimitedAnnotatorInstanceManager<>(instanceManager, identityAnnotatorRatesMap(annotatorAccuracy.getAnnotatorRates()), dataRnd);
+//    }
 
     /////////////////////////////////////////////////////////////////////
     // Annotate until the eval point
     /////////////////////////////////////////////////////////////////////
     annotationsOut.println("source, annotator_id, annotation, annotation_time_nanos, wait_time_nanos"); // annotation file header
-    for (int numAnnotations = 0; numAnnotations<maxAnnotations && numAnnotations<evalPoint; numAnnotations++) {
+    for (int numAnnotations = 0; numAnnotations<maxAnnotations && numAnnotations<measEvalPoint+evalPoint; numAnnotations++) {
 
       // Get an instance and annotator assignment
       AnnotationRequest<SparseFeatureVector, Integer> request = null;
@@ -786,8 +637,7 @@ public class CrowdsourcingLearningCurve {
       // 2) the realistic annotator enforces historical order.
       while (request==null && !instanceManager.isDone()){
         // Pick an annotator at random
-        int annotatorId = dataRnd.nextInt(annotators.size()); // TODO: restore this
-//        int annotatorId = ((int)Math.floor(numAnnotations/trainingData.getInfo().getNumClasses()))%(annotators.size()); 
+        int annotatorId = dataRnd.nextInt(annotators.size()); 
         try {
           request = instanceManager.requestInstanceFor(annotatorId, 1, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
@@ -940,8 +790,10 @@ public class CrowdsourcingLearningCurve {
       break;
       
     case MEAS:
+      boolean measurementsPreScaled = annotationStrategy.toString().contains("real");
       labeler = new ClassificationMeasurementModelLabeler(
-          new BasicClassificationMeasurementModel.Builder().setPriors(priors).setYInitializer(yInitializer).setRnd(algRnd).setData(trainingData),
+          new BasicClassificationMeasurementModel.Builder().setPriors(priors).setYInitializer(yInitializer).
+          setMeasurementsArePreScaled(measurementsPreScaled).setTrustedAnnotator(trustedMeasurementAnnotator).setRnd(algRnd).setData(trainingData),
           training, predictionLogger);
       break;
       
@@ -1031,12 +883,12 @@ public class CrowdsourcingLearningCurve {
     resultsOut.flush();
     PredictionTabulator.writeTo(predictions, tabularPredictionsOut);
     
-    // for debugging only
-    try {
-      Files2.write(Datasets.toAnnotationCsv(trainingData), "/tmp/"+Paths.baseName(trainingData.getInfo().getSource())+".csv");
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
+//    // for debugging only
+//    try {
+//      Files2.write(Datasets.toAnnotationCsv(trainingData), "/tmp/"+Paths.baseName(trainingData.getInfo().getSource())+".csv");
+//    } catch (IOException e) {
+//      e.printStackTrace();
+//    }
 
     logger.info("confusion matrix\n"+new ConfusionMatrixComputer(trainingData.getInfo().getLabelIndexer()).compute(predictions.labeledPredictions()).toString());
     logger.info("annacc = " + DoubleArrays.toString(predictions.annotatorAccuracies()));
@@ -1102,10 +954,9 @@ public class CrowdsourcingLearningCurve {
           new ProbabilisticLabelErrorFunction<Integer>(new ConfusionMatrixDistribution(annotatorConfusions[j]),rnd);
       FallibleAnnotationProvider<SparseFeatureVector,Integer> fallibleLabelProvider = 
           new FallibleAnnotationProvider<SparseFeatureVector, Integer>(goldLabelProvider, labelErrorFunction);
-      boolean generateNonTrivialMeasurements = labelingStrategy==LabelingStrategy.MEAS; 
       FallibleMeasurementProvider<SparseFeatureVector> annotator = new FallibleMeasurementProvider<>(
           fallibleLabelProvider, concealedLabeledTrainingData, j, annotatorAccuracy.getAccuracies()[j], 
-          generateNonTrivialMeasurements, generateNonTrivialMeasurements, rnd);
+          measSimAnnotationRate, measSimPredicateRate, measSimProportionRate, rnd);
       annotators.add(annotator);
     }
     return annotators;
@@ -1156,8 +1007,8 @@ public class CrowdsourcingLearningCurve {
       tokenTransform = Functions2.compose( 
           new ShortWordFilter(1),
           new PorterStemmer(),
-          StopWordRemover.twitterStopWordRemover(),
-          StopWordRemover.fromWords(Sets.newHashSet("weather"))
+          StopWordRemover.twitterStopWordRemover()
+//          StopWordRemover.fromWords(Sets.newHashSet("weather"))
           );
       break;
     // email 
@@ -1238,6 +1089,7 @@ public class CrowdsourcingLearningCurve {
 //      // print document data to make sure import didn't mess things up
 //      System.out.println(inst.getInfo().getSource()+": "+Datasets.wordsIn(inst, data.getInfo().getFeatureIndexer()));
 //    }
+    
     
     return data;
   }

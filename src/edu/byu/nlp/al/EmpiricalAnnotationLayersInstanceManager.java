@@ -15,13 +15,13 @@
  */
 package edu.byu.nlp.al;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
-import java.util.Stack;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.math3.random.RandomGenerator;
@@ -32,10 +32,13 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import edu.byu.nlp.data.FlatInstance;
+import edu.byu.nlp.data.measurements.ClassificationMeasurements.BasicClassificationLabelProportionMeasurement;
 import edu.byu.nlp.data.types.Dataset;
+import edu.byu.nlp.data.types.Measurement;
 import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
 import edu.byu.nlp.dataset.Datasets;
+import edu.byu.nlp.util.Deques;
 import edu.byu.nlp.util.Iterables2;
 
 /**
@@ -48,25 +51,21 @@ import edu.byu.nlp.util.Iterables2;
  */
 public class EmpiricalAnnotationLayersInstanceManager <D, L> extends AbstractInstanceManager<D, L> implements InstanceManager<D, L> {
 
-  private List<FlatInstance<D, L>> queue;
+  public List<FlatInstance<D, L>> queue;
   
-//  private EmpiricalAnnotations<D, L> annotations;
-
+  
   @VisibleForTesting
   EmpiricalAnnotationLayersInstanceManager(Iterable<FlatInstance<D, L>> instances, EmpiricalAnnotations<D, L> annotations,
-      AnnotationRecorder<D, L> annotationRecorder, RandomGenerator rnd) {
+      AnnotationRecorder<D, L> annotationRecorder, int maxNumAnnotations, int maxNumMeasurements, boolean prioritizeLabelProportions, RandomGenerator rnd) {
     super(annotationRecorder);
     
     // make a mutable collection of all annotations for each instance
-    this.queue = Lists.newArrayList();
-    Map<String,Stack<FlatInstance<D, L>>> perInstanceAnnotationLists = Maps.newIdentityHashMap(); 
+    List<FlatInstance<D, L>> sortedAnnotations = Lists.newArrayList();
+    Map<String,Deque<FlatInstance<D, L>>> perInstanceAnnotationLists = Maps.newIdentityHashMap(); 
     for (FlatInstance<D, L> inst: instances){
       // find all annotations associated with this item
-      Stack<FlatInstance<D, L>> anns = new Stack<>();
-      anns.addAll(annotations.getAnnotationsFor(inst.getSource(), inst.getData()).values());
-      // scrambled per-instance arrival times
-      Collections.shuffle(anns,new Random(rnd.nextLong()));
-      perInstanceAnnotationLists.put(inst.getSource(), anns);
+      Collection<FlatInstance<D, L>> anns = annotations.getAnnotationsFor(inst.getSource(), inst.getData()).values();
+      perInstanceAnnotationLists.put(inst.getSource(), Deques.randomizedDeque(anns, rnd));
     }
     
     // grab one annotation for each instance until they are gone
@@ -75,20 +74,41 @@ public class EmpiricalAnnotationLayersInstanceManager <D, L> extends AbstractIns
       Set<String> toRemove = Sets.newHashSet();
       
       for (String src: Iterables2.shuffled(perInstanceAnnotationLists.keySet(), rnd)){
-        Stack<FlatInstance<D, L>> anns = perInstanceAnnotationLists.get(src);
-        if (anns.size()>0){
-          // add 1 to the queue for this instance
-          queue.add(anns.pop());
-        }
-        if (anns.size()==0){
-          toRemove.add(src);
-        }
+          Deque<FlatInstance<D, L>> anns = perInstanceAnnotationLists.get(src);
+          if (anns.size()>0){
+            // add 1 to the queue for this instance
+            sortedAnnotations.add(anns.pop());
+          }
+          if (anns.size()==0){
+            toRemove.add(src);
+          }
       }
       
       for (String src: toRemove){
         perInstanceAnnotationLists.remove(src);
       }
     } 
+    
+
+    // interleave measurements and annotations in the final queue
+    Deque<FlatInstance<D,L>> measurementDeque = Deques.randomizedDeque(annotations.getMeasurements(), rnd);
+    prioritizeMeasurements(measurementDeque, prioritizeLabelProportions);
+    Deque<FlatInstance<D,L>> annotationDeque = new ArrayDeque<FlatInstance<D,L>>(sortedAnnotations);
+    queue = Lists.newLinkedList(); // better queueing behavior
+
+    // add measurements 
+    int numMeasurements = 0;
+    while(measurementDeque.size()>0 && numMeasurements<maxNumMeasurements){
+      numMeasurements += 1;
+      queue.add(measurementDeque.pop());
+    }
+
+    // add annotations 
+    int numAnnotations = 0;
+    while(annotationDeque.size()>0 && numAnnotations<maxNumAnnotations){
+      numAnnotations += 1;
+      queue.add(annotationDeque.pop());
+    }
     
   }
   
@@ -130,12 +150,33 @@ public class EmpiricalAnnotationLayersInstanceManager <D, L> extends AbstractIns
   
 
   public static EmpiricalAnnotationLayersInstanceManager<SparseFeatureVector, Integer> newManager(
-          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations, 
-          RandomGenerator rnd) {
+          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations, int maxNumAnnotations,
+          int maxNumMeasurements, boolean prioritizeLabelProportions, RandomGenerator rnd) {
     
     List<FlatInstance<SparseFeatureVector, Integer>> instances = Datasets.instancesIn(dataset);
     return new EmpiricalAnnotationLayersInstanceManager<SparseFeatureVector, Integer>(instances,annotations,
-          new DatasetAnnotationRecorder(dataset), rnd);
+          new DatasetAnnotationRecorder(dataset), maxNumAnnotations, maxNumMeasurements, prioritizeLabelProportions, rnd);
   }
   
+  
+
+  
+  private void prioritizeMeasurements(Deque<FlatInstance<D, L>> measurementDeque, boolean prioritizeLabelProportions) {
+    if (prioritizeLabelProportions){
+      // get a list of all the labeled proportion measurements 
+      ArrayList<FlatInstance<D, L>> proportions = Lists.newArrayList();
+      for (FlatInstance<D, L> inst: measurementDeque){
+        Measurement meas = inst.getMeasurement();
+        if (meas instanceof BasicClassificationLabelProportionMeasurement){
+          proportions.add(inst);
+        }
+      }
+      // move them to the front of the line
+      measurementDeque.removeAll(proportions);
+      for (FlatInstance<D, L> prop: proportions){
+        measurementDeque.push(prop);
+      }
+    }
+  }
+
 }
