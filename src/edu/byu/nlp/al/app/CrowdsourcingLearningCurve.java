@@ -791,6 +791,10 @@ public class CrowdsourcingLearningCurve {
       
     case MEAS:
       boolean measurementsPreScaled = annotationStrategy.toString().contains("real");
+      logger.warn("hard-coding measurement model annotator noise to be IG(1.1, 1.1). "
+          + "This is being done purely for convenience in running experiments. "
+          + "Feel free to remove this code if you wish CLI args to be respected again for measurement models.");
+      priors.setBGamma(1.1); priors.setCGamma(1.1); // hard-coded measurement model priors
       labeler = new ClassificationMeasurementModelLabeler(
           new BasicClassificationMeasurementModel.Builder().setPriors(priors).setYInitializer(yInitializer).
           setMeasurementsArePreScaled(measurementsPreScaled).setTrustedAnnotator(trustedMeasurementAnnotator).setRnd(algRnd).setData(trainingData),
