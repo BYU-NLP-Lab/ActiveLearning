@@ -87,7 +87,7 @@ import edu.byu.nlp.crowdsourcing.MultiAnnModelBuilders.MultiAnnModelBuilder;
 import edu.byu.nlp.crowdsourcing.PriorSpecification;
 import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingState;
 import edu.byu.nlp.crowdsourcing.SerializedLabelLabeler;
-import edu.byu.nlp.crowdsourcing.measurements.classification.BasicClassificationMeasurementModel;
+import edu.byu.nlp.crowdsourcing.measurements.classification.PANClassificationMeasurementModel;
 import edu.byu.nlp.crowdsourcing.measurements.classification.ClassificationMeasurementModelLabeler;
 import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscreteModelLabeler;
 import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscretePipelinedModelLabeler;
@@ -245,7 +245,7 @@ public class CrowdsourcingLearningCurve {
       + "(e.g., 1 is equivalent to document feature normalization).")
   private static int featureNormalizationConstant = -1;
 
-  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, DISCRIM, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, CSLDALEX, CSLDAP, RANDOM, GOLD, PASS, MEAS}; 
+  private enum LabelingStrategy {MULTIRESP, UBASELINE, BASELINE, MOMRESP, ITEMRESP, LOGRESP_ST, LOGRESP, DISCRIM, VARLOGRESP, VARMULTIRESP, VARMOMRESP, VARITEMRESP, CSLDA, CSLDALEX, CSLDAP, RANDOM, GOLD, PASS, PAN}; 
   
   /* -------------  Initialization Methods  ------------------- */
 
@@ -783,14 +783,14 @@ public class CrowdsourcingLearningCurve {
 	    		  training, predictionLogger);
       break;
       
-    case MEAS:
+    case PAN:
       boolean measurementsPreScaled = annotationStrategy.toString().contains("real");
       logger.warn("hard-coding measurement model annotator noise to be IG(1.1, 1.1). "
           + "This is being done purely for convenience in running experiments. "
           + "Feel free to remove this code if you wish CLI args to be respected again for measurement models.");
       priors.setBGamma(1.1); priors.setCGamma(1.1); // hard-coded measurement model priors
       labeler = new ClassificationMeasurementModelLabeler(
-          new BasicClassificationMeasurementModel.Builder().setPriors(priors).setYInitializer(yInitializer).
+          new PANClassificationMeasurementModel.Builder().setPriors(priors).setYInitializer(yInitializer).
           setMeasurementsArePreScaled(measurementsPreScaled).setTrustedAnnotator(trustedMeasurementAnnotator).setRnd(algRnd).setData(trainingData),
           training, predictionLogger);
       break;
