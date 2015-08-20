@@ -87,8 +87,8 @@ import edu.byu.nlp.crowdsourcing.MultiAnnModelBuilders.MultiAnnModelBuilder;
 import edu.byu.nlp.crowdsourcing.PriorSpecification;
 import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingState;
 import edu.byu.nlp.crowdsourcing.SerializedLabelLabeler;
-import edu.byu.nlp.crowdsourcing.measurements.classification.PANClassificationMeasurementModel;
 import edu.byu.nlp.crowdsourcing.measurements.classification.ClassificationMeasurementModelLabeler;
+import edu.byu.nlp.crowdsourcing.measurements.classification.PANClassificationMeasurementModel;
 import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscreteModelLabeler;
 import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscretePipelinedModelLabeler;
 import edu.byu.nlp.crowdsourcing.models.em.FullyDiscriminativeCrowdsourcingModelLabeler;
@@ -102,6 +102,8 @@ import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldLogRespModel;
 import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldMomRespModel;
 import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldMultiAnnLabeler;
 import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldMultiRespModel;
+import edu.byu.nlp.data.BasicFlatInstance;
+import edu.byu.nlp.data.FlatInstance;
 import edu.byu.nlp.data.docs.CountCutoffFeatureSelectorFactory;
 import edu.byu.nlp.data.docs.DocPipes;
 import edu.byu.nlp.data.docs.DocumentDatasetBuilder;
@@ -110,6 +112,7 @@ import edu.byu.nlp.data.docs.JSONDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.JSONVectorDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.TopNPerDocumentFeatureSelectorFactory;
 import edu.byu.nlp.data.docs.VectorDocumentDatasetBuilder;
+import edu.byu.nlp.data.measurements.ClassificationMeasurements.BasicClassificationLabelProportionMeasurement;
 import edu.byu.nlp.data.measurements.ClassificationMeasurements.ClassificationAnnotationMeasurement;
 import edu.byu.nlp.data.streams.EmailHeaderStripper;
 import edu.byu.nlp.data.streams.EmoticonTransformer;
@@ -120,6 +123,7 @@ import edu.byu.nlp.data.types.Dataset;
 import edu.byu.nlp.data.types.Measurement;
 import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
+import edu.byu.nlp.dataset.BasicDataset;
 import edu.byu.nlp.dataset.Datasets;
 import edu.byu.nlp.dataset.Datasets.AnnotatorClusterMethod;
 import edu.byu.nlp.util.DoubleArrays;
@@ -295,6 +299,8 @@ public class CrowdsourcingLearningCurve {
   private static int measEvalPoint = 0; 
   private static boolean prioritizeLabelProportions = true; // move label proportion judgments to the front of the line
   private static String trustedMeasurementAnnotator = "123456789"; // name of an annotator who should be given strong prior trust
+  @Option(help="add trusted measurements enforcing a uniform class distribution")
+  private static boolean addTrustedUniformClassMeasurements = false;  
   
   
   /* -------------  Model Params  ------------------- */
@@ -658,6 +664,22 @@ public class CrowdsourcingLearningCurve {
       }
     } // end annotate
 
+    // optionally append measurements enforcing a uniform distribution over classes (prior knowledge) 
+    if (addTrustedUniformClassMeasurements && labelingStrategy==LabelingStrategy.PAN){
+      Indexer<String> labelIndexer = trainingData.getInfo().getIndexers().getLabelIndexer();
+      Indexer<String> annotatorIndexer = trainingData.getInfo().getAnnotatorIdIndexer();
+      annotatorIndexer.add(trustedMeasurementAnnotator);
+      int trustedAnnotator = annotatorIndexer.indexOf(trustedMeasurementAnnotator);
+      for (String label: labelIndexer){
+        double uniformLablProportion = 1.0/trainingData.getInfo().getNumClasses();
+        Measurement meas = new BasicClassificationLabelProportionMeasurement(trustedAnnotator, uniformLablProportion, 1, labelIndexer.indexOf(label), 0L, 0L);
+        FlatInstance<SparseFeatureVector, Integer> ann = new BasicFlatInstance<SparseFeatureVector, Integer>(
+            -1, null, trustedAnnotator, null, meas, 0L, 0L);
+        Datasets.addAnnotationToDataset(trainingData, ann);
+      }
+      trainingData = new BasicDataset(trainingData, trainingData.getMeasurements(), Datasets.infoWithCalculatedCounts(trainingData, trainingData.getInfo().getSource(), trainingData.getInfo().getIndexers()));
+    }
+    
     // truncate unannotated training data (if requested). Note that some 
     // algorithms do this below manually no matter what option is specified
     if (truncateUnannotatedData){
@@ -835,8 +857,6 @@ public class CrowdsourcingLearningCurve {
     AccuracyComputer accuracyComputer = new AccuracyComputer();
     AccuracyComputer top3AccuracyComputer = new AccuracyComputer(3);
     AnnotatorAccuracyComputer annAccComputer = new AnnotatorAccuracyComputer(annotators.size());
-    RmseAnnotatorAccuracyComputer rmseComputer = new RmseAnnotatorAccuracyComputer(annotatorAccuracy==null?null:annotatorAccuracy.getAccuracies());
-    RmseAnnotatorConfusionMatrixComputer rmseMatrixComputer = new RmseAnnotatorConfusionMatrixComputer(annotatorAccuracy==null?null:annotatorAccuracy.getConfusionMatrices());
     MachineAccuracyComputer machineAccComputer = new MachineAccuracyComputer();
     RmseMachineAccuracyVsTestComputer machineRmseComputer = new RmseMachineAccuracyVsTestComputer();
     RmseMachineConfusionMatrixVsTestComputer machineMatRmseComputer = new RmseMachineConfusionMatrixVsTestComputer(trainingData.getInfo().getLabelIndexer());
@@ -845,8 +865,7 @@ public class CrowdsourcingLearningCurve {
     // file headers
     resultsOut.println(Joiner.on(',').join(
         annotationsCounter.csvHeader(), jointComputer.csvHeader(), accuracyComputer.csvHeader(), top3AccuracyComputer.csvHeader(),
-        annAccComputer.csvHeader(), rmseComputer.csvHeader(), rmseMatrixComputer.csvHeader(),
-        machineAccComputer.csvHeader(), machineRmseComputer.csvHeader(), machineMatRmseComputer.csvHeader(),
+        annAccComputer.csvHeader(), machineAccComputer.csvHeader(), machineRmseComputer.csvHeader(), machineMatRmseComputer.csvHeader(),
         settingsComputer.csvHeader()
         ));
 
@@ -868,8 +887,6 @@ public class CrowdsourcingLearningCurve {
         accResults.toCsv(),
         acc3Results.toCsv(),
         annAccComputer.compute(predictions).toCsv(),
-        rmseComputer.compute(predictions),
-        rmseMatrixComputer.compute(predictions),
         machineAccComputer.compute(predictions),
         machineRmseComputer.compute(predictions, trainingData.getInfo().getNullLabel()),
         machineMatRmseComputer.compute(predictions),
