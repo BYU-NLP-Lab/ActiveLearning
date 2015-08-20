@@ -295,12 +295,6 @@ public class CrowdsourcingLearningCurve {
   private static int measEvalPoint = 0; 
   private static boolean prioritizeLabelProportions = true; // move label proportion judgments to the front of the line
   private static String trustedMeasurementAnnotator = "123456789"; // name of an annotator who should be given strong prior trust
-  @Option
-  private static double measSimAnnotationRate = 0.5;
-  @Option
-  private static double measSimPredicateRate = 0.4;
-  @Option
-  private static double measSimProportionRate = 0.1;
   
   
   /* -------------  Model Params  ------------------- */
@@ -953,6 +947,9 @@ public class CrowdsourcingLearningCurve {
     // scale annotator rates up until the first one hits 1 (won't change proportions but will decrease failure rate)
     DoubleArrays.multiplyToSelf(annotatorRates, 1.0/DoubleArrays.max(annotatorRates));
     
+    double measSimAnnotationRate = (double)evalPoint/(double)(evalPoint+measEvalPoint);
+    double measSimPredicateRate = (double)measEvalPoint/(double)(evalPoint+measEvalPoint);
+    double measSimProportionRate = 0.01*measSimAnnotationRate;
     for (int j=0; j<annotatorConfusions.length; j++) {
       ProbabilisticLabelErrorFunction<Integer> labelErrorFunction = 
           new ProbabilisticLabelErrorFunction<Integer>(new ConfusionMatrixDistribution(annotatorConfusions[j]),rnd);
