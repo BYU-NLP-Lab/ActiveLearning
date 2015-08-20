@@ -25,8 +25,10 @@ import com.google.common.collect.Lists;
 import edu.byu.nlp.classify.eval.AccuracyComputer;
 import edu.byu.nlp.classify.eval.Prediction;
 import edu.byu.nlp.classify.eval.Predictions;
+import edu.byu.nlp.data.measurements.ClassificationMeasurements.ClassificationAnnotationMeasurement;
 import edu.byu.nlp.data.types.Dataset;
 import edu.byu.nlp.data.types.DatasetInstance;
+import edu.byu.nlp.data.types.Measurement;
 import edu.byu.nlp.dataset.Datasets;
 import edu.byu.nlp.math.AbstractRealMatrixPreservingVisitor;
 import edu.byu.nlp.util.DoubleArrays;
@@ -77,6 +79,16 @@ public class MetricComputers {
 //      return "wait_secs, annotation_secs, wait_cost, annotation_cost, total_cost";
 //    }
 //  }
+  
+  private static int getNumNonAnnotationMeasurements(Dataset data){
+    int numNonAnnotationMeasurements = 0;
+    for (Measurement meas: data.getMeasurements()){
+      if (!(meas instanceof ClassificationAnnotationMeasurement)){
+        numNonAnnotationMeasurements += 1;
+      }
+    }
+    return numNonAnnotationMeasurements;
+  }
 
   public static class DatasetMetricComputer {
     public String csvHeader() {
@@ -112,7 +124,7 @@ public class MetricComputers {
           new String[] { 
               "" + data.getInfo().getNumDocumentsWithAnnotations(), 
               "" + data.getInfo().getNumAnnotations(),
-              "" + data.getMeasurements().size(),
+              "" + getNumNonAnnotationMeasurements(data),
               "" + data.getInfo().getNumAnnotators(),
               "" + data.getInfo().getNumClasses(),
               "" + data.getInfo().getNumFeatures(),
