@@ -1112,6 +1112,8 @@ public class CrowdsourcingLearningCurve {
   public static class ExperimentSettingsComputer {
     public String csvHeader() {
       return Joiner.on(',').join(new String[]{
+          "eval_point",
+          "meas_eval_point",
           "k",
           "labeling_strategy",
           "annotation_strategy",
@@ -1148,6 +1150,8 @@ public class CrowdsourcingLearningCurve {
     }
     public String compute(int dataSecs, int inferenceSecs, PriorSpecification priors) {
       return Joiner.on(',').join(new String[]{
+          ""+evalPoint,
+          ""+measEvalPoint,
           ""+k,
           ""+labelingStrategy,
           ""+annotationStrategy,
