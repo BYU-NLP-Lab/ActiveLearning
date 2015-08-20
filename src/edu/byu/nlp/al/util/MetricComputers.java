@@ -84,6 +84,7 @@ public class MetricComputers {
           new String[] { 
               "num_instances_annotated", 
               "num_annotations",
+              "num_measurements",
               "num_annotators",
               "num_classes",
               "num_features",
@@ -111,6 +112,7 @@ public class MetricComputers {
           new String[] { 
               "" + data.getInfo().getNumDocumentsWithAnnotations(), 
               "" + data.getInfo().getNumAnnotations(),
+              "" + data.getMeasurements().size(),
               "" + data.getInfo().getNumAnnotators(),
               "" + data.getInfo().getNumClasses(),
               "" + data.getInfo().getNumFeatures(),
