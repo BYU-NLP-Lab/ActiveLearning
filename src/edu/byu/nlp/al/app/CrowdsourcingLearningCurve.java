@@ -449,10 +449,6 @@ public class CrowdsourcingLearningCurve {
 
     // Save annotations for future use (if we're using an empirical annotation strategy)
     final EmpiricalAnnotations<SparseFeatureVector, Integer> annotations = EmpiricalAnnotations.fromDataset(fullData);
-    if (annotationStrategy.toString().contains("real")){
-      measEvalPoint = Math.min(measEvalPoint, annotations.getMeasurements().size());
-      logger.info("limiting --meas-eval-point by the number of available measurements: "+annotations.getMeasurements().size());
-    }
     
     // ensure the dataset knows about all the annotators it will need to deal with.
     // if we are dealing with real data, we read in annotators with the data. Otherwise, 
@@ -625,7 +621,14 @@ public class CrowdsourcingLearningCurve {
     // Annotate until the eval point
     /////////////////////////////////////////////////////////////////////
     annotationsOut.println("source, annotator_id, annotation, annotation_time_nanos, wait_time_nanos"); // annotation file header
-    for (int numAnnotations = 0; numAnnotations<maxAnnotations && numAnnotations<measEvalPoint+evalPoint; numAnnotations++) {
+    int effectiveAnnotationPoint = evalPoint; 
+    int effectiveMeasurementPoint = measEvalPoint; 
+    if (annotationStrategy.toString().contains("real")){
+      effectiveAnnotationPoint = Math.min(evalPoint, annotations.getDataInfo().getNumAnnotations());
+      effectiveMeasurementPoint = Math.min(measEvalPoint, annotations.getMeasurements().size());
+      logger.info("limiting --eval-point and --meas-eval-point by the number of available measurements: "+effectiveAnnotationPoint+","+effectiveMeasurementPoint);
+    }
+    for (int numAnnotations = 0; numAnnotations<maxAnnotations && numAnnotations<effectiveAnnotationPoint+effectiveMeasurementPoint; numAnnotations++) {
 
       // Get an instance and annotator assignment
       AnnotationRequest<SparseFeatureVector, Integer> request = null;
