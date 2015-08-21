@@ -449,7 +449,11 @@ public class CrowdsourcingLearningCurve {
 
     // Save annotations for future use (if we're using an empirical annotation strategy)
     final EmpiricalAnnotations<SparseFeatureVector, Integer> annotations = EmpiricalAnnotations.fromDataset(fullData);
-
+    if (annotationStrategy.toString().contains("real")){
+      measEvalPoint = Math.min(measEvalPoint, annotations.getMeasurements().size());
+      logger.info("limiting --meas-eval-point by the number of available measurements: "+annotations.getMeasurements().size());
+    }
+    
     // ensure the dataset knows about all the annotators it will need to deal with.
     // if we are dealing with real data, we read in annotators with the data. Otherwise, 
     // we'll have to change it. 
