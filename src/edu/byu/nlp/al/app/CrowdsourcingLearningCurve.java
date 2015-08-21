@@ -957,7 +957,7 @@ public class CrowdsourcingLearningCurve {
     
     double measSimAnnotationRate = (double)evalPoint/(double)(evalPoint+measEvalPoint);
     double measSimPredicateRate = (double)measEvalPoint/(double)(evalPoint+measEvalPoint);
-    double measSimProportionRate = 0.01*measSimAnnotationRate;
+    double measSimProportionRate = 0.01*measSimPredicateRate;
     for (int j=0; j<annotatorConfusions.length; j++) {
       ProbabilisticLabelErrorFunction<Integer> labelErrorFunction = 
           new ProbabilisticLabelErrorFunction<Integer>(new ConfusionMatrixDistribution(annotatorConfusions[j]),rnd);
