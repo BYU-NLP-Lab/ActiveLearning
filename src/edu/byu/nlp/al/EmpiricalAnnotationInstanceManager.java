@@ -50,7 +50,7 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
 
   @VisibleForTesting
 	EmpiricalAnnotationInstanceManager(Iterable<FlatInstance<D, L>> instances, EmpiricalAnnotations<D, L> annotations,
-	    AnnotationRecorder<D, L> annotationRecorder, double measurementProb, int maxNumMeasurements, boolean prioritizeLabelProportions, RandomGenerator rnd) {
+	    AnnotationRecorder<D, L> annotationRecorder, int maxNumAnnotations, int maxNumMeasurements, boolean prioritizeLabelProportions, RandomGenerator rnd) {
     super(annotationRecorder);
     
     List<FlatInstance<D, L>> sortedAnnotations = Lists.newArrayList();
@@ -67,21 +67,20 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
     prioritizeMeasurements(measurementDeque, prioritizeLabelProportions);
     Deque<FlatInstance<D,L>> annotationDeque = new ArrayDeque<FlatInstance<D,L>>(sortedAnnotations);
 	  queue = Lists.newLinkedList(); // better queueing behavior
-	  
-	  int numMeasurements = 0;
-	  while (annotationDeque.size()>0){
-      if (rnd.nextDouble()<measurementProb && measurementDeque.size()>0 && numMeasurements < maxNumMeasurements){
-        // add a measurement
-        queue.add(measurementDeque.pop());
-        numMeasurements += 1;
-      }
-      else if (annotationDeque.size()>0){
-        // add an annotation
-        queue.add(annotationDeque.pop());
-      }
-	  }
-    queue.addAll(measurementDeque);
-	  
+
+    // add measurements 
+    int numMeasurements = 0;
+    while(measurementDeque.size()>0 && numMeasurements<maxNumMeasurements){
+      numMeasurements += 1;
+      queue.add(measurementDeque.pop());
+    }
+
+    // add annotations 
+    int numAnnotations = 0;
+    while(annotationDeque.size()>0 && numAnnotations<maxNumAnnotations){
+      numAnnotations += 1;
+      queue.add(annotationDeque.pop());
+    }
 	}
   
   @Override
@@ -120,12 +119,12 @@ public class EmpiricalAnnotationInstanceManager<D, L> extends AbstractInstanceMa
 	
 
   public static EmpiricalAnnotationInstanceManager<SparseFeatureVector, Integer> newManager(
-          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations, double measurementProbability,
+          Dataset dataset, EmpiricalAnnotations<SparseFeatureVector, Integer> annotations, int maxNumAnnotations,
           int maxNumMeasurements, boolean prioritizeLabelProportions, RandomGenerator rnd) {
     
     List<FlatInstance<SparseFeatureVector, Integer>> instances = Datasets.instancesIn(dataset);
     return new EmpiricalAnnotationInstanceManager<SparseFeatureVector, Integer>(instances,annotations,
-          new DatasetAnnotationRecorder(dataset), measurementProbability, maxNumMeasurements, prioritizeLabelProportions, rnd);
+          new DatasetAnnotationRecorder(dataset), maxNumAnnotations, maxNumMeasurements, prioritizeLabelProportions, rnd);
   }
   
 
