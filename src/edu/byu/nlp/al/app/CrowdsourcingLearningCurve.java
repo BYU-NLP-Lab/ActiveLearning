@@ -851,7 +851,7 @@ public class CrowdsourcingLearningCurve {
     LogJointComputer jointComputer = new LogJointComputer();
     AccuracyComputer accuracyComputer = new AccuracyComputer();
     AccuracyComputer top3AccuracyComputer = new AccuracyComputer(3);
-    AnnotatorAccuracyComputer annAccComputer = new AnnotatorAccuracyComputer(annotators.size());
+    AnnotatorAccuracyComputer annAccComputer = new AnnotatorAccuracyComputer(trainingData.getInfo().getNumAnnotators());
     MachineAccuracyComputer machineAccComputer = new MachineAccuracyComputer();
     ExperimentSettingsComputer settingsComputer = new ExperimentSettingsComputer();
 
