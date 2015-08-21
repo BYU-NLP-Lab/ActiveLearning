@@ -19,7 +19,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.FileUtils;
@@ -35,7 +34,6 @@ import com.google.common.base.Predicates;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.io.ByteStreams;
 
 import edu.byu.nlp.al.ABArbiterInstanceManager;
@@ -55,8 +53,6 @@ import edu.byu.nlp.al.util.MetricComputers.DatasetMetricComputer;
 import edu.byu.nlp.al.util.MetricComputers.LogJointComputer;
 import edu.byu.nlp.al.util.MetricComputers.MachineAccuracyComputer;
 import edu.byu.nlp.al.util.MetricComputers.PredictionTabulator;
-import edu.byu.nlp.al.util.MetricComputers.RmseAnnotatorAccuracyComputer;
-import edu.byu.nlp.al.util.MetricComputers.RmseMachineAccuracyVsTestComputer;
 import edu.byu.nlp.classify.NaiveBayesLearner;
 import edu.byu.nlp.classify.UncertaintyPreservingNaiveBayesLearner;
 import edu.byu.nlp.classify.data.DatasetBuilder;
@@ -129,7 +125,6 @@ import edu.byu.nlp.dataset.Datasets.AnnotatorClusterMethod;
 import edu.byu.nlp.util.DoubleArrays;
 import edu.byu.nlp.util.Functions2;
 import edu.byu.nlp.util.Indexer;
-import edu.byu.nlp.util.Matrices;
 import edu.byu.nlp.util.Pair;
 import edu.byu.nlp.util.TimedEvent;
 import edu.byu.nlp.util.jargparser.ArgumentParser;
@@ -858,14 +853,12 @@ public class CrowdsourcingLearningCurve {
     AccuracyComputer top3AccuracyComputer = new AccuracyComputer(3);
     AnnotatorAccuracyComputer annAccComputer = new AnnotatorAccuracyComputer(annotators.size());
     MachineAccuracyComputer machineAccComputer = new MachineAccuracyComputer();
-    RmseMachineAccuracyVsTestComputer machineRmseComputer = new RmseMachineAccuracyVsTestComputer();
-    RmseMachineConfusionMatrixVsTestComputer machineMatRmseComputer = new RmseMachineConfusionMatrixVsTestComputer(trainingData.getInfo().getLabelIndexer());
     ExperimentSettingsComputer settingsComputer = new ExperimentSettingsComputer();
 
     // file headers
     resultsOut.println(Joiner.on(',').join(
         annotationsCounter.csvHeader(), jointComputer.csvHeader(), accuracyComputer.csvHeader(), top3AccuracyComputer.csvHeader(),
-        annAccComputer.csvHeader(), machineAccComputer.csvHeader(), machineRmseComputer.csvHeader(), machineMatRmseComputer.csvHeader(),
+        annAccComputer.csvHeader(), machineAccComputer.csvHeader(), 
         settingsComputer.csvHeader()
         ));
 
@@ -888,8 +881,6 @@ public class CrowdsourcingLearningCurve {
         acc3Results.toCsv(),
         annAccComputer.compute(predictions).toCsv(),
         machineAccComputer.compute(predictions),
-        machineRmseComputer.compute(predictions, trainingData.getInfo().getNullLabel()),
-        machineMatRmseComputer.compute(predictions),
         settingsComputer.compute(
             (stopwatchData==null)? 0: (int)stopwatchData.elapsed(TimeUnit.SECONDS),
             (int)stopwatchInference.elapsed(TimeUnit.SECONDS),
@@ -1206,60 +1197,7 @@ public class CrowdsourcingLearningCurve {
   }
   
 
-  public static class RmseAnnotatorConfusionMatrixComputer {
-    private final double[][][] actualConfusionMatrices;
 
-    public RmseAnnotatorConfusionMatrixComputer(double[][][] actualConfusionMatrices) {
-      this.actualConfusionMatrices = actualConfusionMatrices;
-    }
-
-    public double compute(Predictions predictions) {
-      if (actualConfusionMatrices==null){
-        return -1;
-      }
-      // flatten matrices into a single array and calculate rmse over elements.
-      double[][] actualFlattenedMatrices = new double[actualConfusionMatrices.length][];
-      double[][] predictedFlattenedMatrices = new double[actualConfusionMatrices.length][];
-      for (int a=0; a<actualConfusionMatrices.length; a++){
-        actualFlattenedMatrices[a] = Matrices.flatten(actualConfusionMatrices[a]);
-        predictedFlattenedMatrices[a] = Matrices.flatten(predictions.annotatorConfusionMatrices()[a]);
-      }
-      double[] actualArray = Matrices.flatten(actualFlattenedMatrices);
-      double[] predictedArray = Matrices.flatten(predictedFlattenedMatrices);
-      return DoubleArrays.rmse(actualArray, predictedArray);
-    }
-
-    public String csvHeader() {
-      return "annacc_mat_rmse";
-    }
-  }
-
-  public static class RmseMachineConfusionMatrixVsTestComputer {
-    public ConfusionMatrixComputer computer;
-    public RmseMachineConfusionMatrixVsTestComputer(Indexer<String> labels){
-      this.computer = new ConfusionMatrixComputer(labels);
-    }
-    public double compute(Predictions predictions) {
-      double[] actualArray = Matrices.flatten(predictions.machineConfusionMatrix());
-      if (actualArray==null){
-        return -1;
-      }
-      double[][] testConfusionMatrix = computer.compute(predictions.testPredictions()).getData();
-      double[] testArray = Matrices.flatten(testConfusionMatrix);
-      return DoubleArrays.rmse(actualArray, testArray);
-    }
-    public String csvHeader() {
-      return "machacc_mat_rmse";
-    }
-  }
-
-  private static Map<Integer,Double> identityAnnotatorRatesMap(double[] annotatorRates) {
-    Map<Integer,Double> rates = Maps.newHashMap();
-    for (int j=0; j<annotatorRates.length; j++){
-      rates.put(j, annotatorRates[j]);
-    }
-    return rates;
-  }
   
   /**
    * How to do data splits in a reasonable way less obvious than it seems like it should be for multiannotator data. 
