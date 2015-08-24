@@ -38,6 +38,7 @@ import com.google.common.collect.Lists;
 import com.google.common.io.ByteStreams;
 
 import edu.byu.nlp.al.ABArbiterInstanceManager;
+import edu.byu.nlp.al.ActiveMeasurementSelector;
 import edu.byu.nlp.al.AnnotationInfo;
 import edu.byu.nlp.al.AnnotationRequest;
 import edu.byu.nlp.al.DatasetAnnotationRecorder;
@@ -45,7 +46,9 @@ import edu.byu.nlp.al.EmpiricalAnnotationInstanceManager;
 import edu.byu.nlp.al.EmpiricalAnnotationLayersInstanceManager;
 import edu.byu.nlp.al.GeneralizedRoundRobinInstanceManager;
 import edu.byu.nlp.al.InstanceManager;
+import edu.byu.nlp.al.MeasurementSelector;
 import edu.byu.nlp.al.NDeepInstanceManager;
+import edu.byu.nlp.al.RandomMeasurementSelector;
 import edu.byu.nlp.al.simulation.FallibleAnnotationProvider;
 import edu.byu.nlp.al.simulation.FallibleMeasurementProvider;
 import edu.byu.nlp.al.simulation.GoldLabelProvider;
@@ -54,14 +57,8 @@ import edu.byu.nlp.al.util.MetricComputers.DatasetMetricComputer;
 import edu.byu.nlp.al.util.MetricComputers.LogJointComputer;
 import edu.byu.nlp.al.util.MetricComputers.MachineAccuracyComputer;
 import edu.byu.nlp.al.util.MetricComputers.PredictionTabulator;
-import edu.byu.nlp.classify.NaiveBayesLearner;
-import edu.byu.nlp.classify.UncertaintyPreservingNaiveBayesLearner;
-import edu.byu.nlp.classify.data.DatasetBuilder;
 import edu.byu.nlp.classify.data.DatasetLabeler;
-import edu.byu.nlp.classify.data.GoldLabelLabeler;
 import edu.byu.nlp.classify.data.LabelChooser;
-import edu.byu.nlp.classify.data.RandomLabelLabeler;
-import edu.byu.nlp.classify.data.SingleLabelLabeler;
 import edu.byu.nlp.classify.eval.AccuracyComputer;
 import edu.byu.nlp.classify.eval.ConfusionMatrixComputer;
 import edu.byu.nlp.classify.eval.ConfusionMatrixDistribution;
@@ -69,7 +66,6 @@ import edu.byu.nlp.classify.eval.OverallAccuracy;
 import edu.byu.nlp.classify.eval.Predictions;
 import edu.byu.nlp.classify.eval.ProbabilisticLabelErrorFunction;
 import edu.byu.nlp.classify.util.ModelTraining.IntermediatePredictionLogger;
-import edu.byu.nlp.classify.util.ModelTraining.OperationType;
 import edu.byu.nlp.crowdsourcing.AnnotatorAccuracySetting;
 import edu.byu.nlp.crowdsourcing.ArbiterVote;
 import edu.byu.nlp.crowdsourcing.EmpiricalMeasurementProvider;
@@ -78,29 +74,12 @@ import edu.byu.nlp.crowdsourcing.MajorityVote;
 import edu.byu.nlp.crowdsourcing.ModelInitialization;
 import edu.byu.nlp.crowdsourcing.ModelInitialization.AssignmentInitializer;
 import edu.byu.nlp.crowdsourcing.ModelInitialization.MatrixAssignmentInitializer;
-import edu.byu.nlp.crowdsourcing.MultiAnnDatasetLabeler;
-import edu.byu.nlp.crowdsourcing.MultiAnnModelBuilders;
-import edu.byu.nlp.crowdsourcing.MultiAnnModelBuilders.MultiAnnModelBuilder;
 import edu.byu.nlp.crowdsourcing.PriorSpecification;
 import edu.byu.nlp.crowdsourcing.SerializableCrowdsourcingState;
-import edu.byu.nlp.crowdsourcing.SerializedLabelLabeler;
 import edu.byu.nlp.crowdsourcing.measurements.MeasurementModelBuilder;
 import edu.byu.nlp.crowdsourcing.measurements.classification.ClassificationMeasurementModelLabeler;
 import edu.byu.nlp.crowdsourcing.measurements.classification.PANClassificationMeasurementModel;
-import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscreteModelLabeler;
-import edu.byu.nlp.crowdsourcing.models.em.CSLDADiscretePipelinedModelLabeler;
-import edu.byu.nlp.crowdsourcing.models.em.FullyDiscriminativeCrowdsourcingModelLabeler;
-import edu.byu.nlp.crowdsourcing.models.em.LogRespModelLabeler;
-import edu.byu.nlp.crowdsourcing.models.gibbs.BlockCollapsedMultiAnnModel;
 import edu.byu.nlp.crowdsourcing.models.gibbs.BlockCollapsedMultiAnnModelMath.DiagonalizationMethod;
-import edu.byu.nlp.crowdsourcing.models.gibbs.BlockCollapsedMultiAnnModelNeutered;
-import edu.byu.nlp.crowdsourcing.models.gibbs.CollapsedItemResponseModel;
-import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldItemRespModel;
-import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldLogRespModel;
-import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldMomRespModel;
-import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldMultiAnnLabeler;
-import edu.byu.nlp.crowdsourcing.models.meanfield.MeanFieldMultiRespModel;
-import edu.byu.nlp.data.BasicFlatInstance;
 import edu.byu.nlp.data.FlatInstance;
 import edu.byu.nlp.data.docs.CountCutoffFeatureSelectorFactory;
 import edu.byu.nlp.data.docs.DocPipes;
@@ -110,7 +89,6 @@ import edu.byu.nlp.data.docs.JSONDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.JSONVectorDocumentDatasetBuilder;
 import edu.byu.nlp.data.docs.TopNPerDocumentFeatureSelectorFactory;
 import edu.byu.nlp.data.docs.VectorDocumentDatasetBuilder;
-import edu.byu.nlp.data.measurements.ClassificationMeasurements.BasicClassificationLabelProportionMeasurement;
 import edu.byu.nlp.data.measurements.ClassificationMeasurements.ClassificationAnnotationMeasurement;
 import edu.byu.nlp.data.streams.EmailHeaderStripper;
 import edu.byu.nlp.data.streams.EmoticonTransformer;
@@ -121,12 +99,10 @@ import edu.byu.nlp.data.types.Dataset;
 import edu.byu.nlp.data.types.Measurement;
 import edu.byu.nlp.data.types.SparseFeatureVector;
 import edu.byu.nlp.data.util.EmpiricalAnnotations;
-import edu.byu.nlp.dataset.BasicDataset;
 import edu.byu.nlp.dataset.Datasets;
 import edu.byu.nlp.dataset.Datasets.AnnotatorClusterMethod;
 import edu.byu.nlp.util.DoubleArrays;
 import edu.byu.nlp.util.Functions2;
-import edu.byu.nlp.util.Indexer;
 import edu.byu.nlp.util.Pair;
 import edu.byu.nlp.util.TimedEvent;
 import edu.byu.nlp.util.jargparser.ArgumentParser;
@@ -305,10 +281,20 @@ public class CrowdsourcingActiveMeasurement {
   @Option(help="add trusted measurements enforcing a uniform class distribution")
   private static boolean addTrustedUniformClassMeasurements = false;  
   
+  public enum ActiveStrategy {AL,RAND};
+  @Option
+  private static ActiveStrategy activeStrategy = ActiveStrategy.AL;
+  
   @Option
   private static int activeEvalPoint = 0;
   @Option
   private static int batchSize = 1;
+  @Option(help="number of samples to use for model training during active measurement selection")
+  private static int numSamples = 10;
+  @Option(help="what percentage of the candidates should be considered at each iteration of active measurement selection")
+  private static double thinningRate = 0.1;
+  @Option(help="what is the minimum number of candidates to consider (if available) at each iteration of active measurement selection")
+  private static int minCandidates = 10;
   
   
   /* -------------  Model Params  ------------------- */
@@ -719,7 +705,19 @@ public class CrowdsourcingActiveMeasurement {
     MeasurementModelBuilder modelBuilder = new PANClassificationMeasurementModel.Builder().setPriors(priors).setYInitializer(yInitializer).
         setMeasurementsArePreScaled(measurementsPreScaled).setTrustedAnnotator(trustedMeasurementAnnotator).setRnd(algRnd).setData(trainingData);
     DatasetLabeler labeler = new ClassificationMeasurementModelLabeler(modelBuilder, training, predictionLogger);
-    ActiveMeasurementSelector activeSelector = new ActiveMeasurementSelector(modelBuilder, annotations);
+    MeasurementSelector activeSelector;
+    switch (activeStrategy){
+    case AL:
+      activeSelector = new ActiveMeasurementSelector(
+          modelBuilder, trainingData, annotations, numSamples, training, thinningRate, minCandidates, algRnd);
+      break;
+    case RAND:
+      activeSelector = new RandomMeasurementSelector(
+          modelBuilder, trainingData, annotations, algRnd);
+      break;
+    default:
+      throw new RuntimeException("unsupported active strategy: "+activeStrategy);
+    }
     
     // result file headers
     DatasetMetricComputer annotationsCounter = new DatasetMetricComputer();
@@ -734,6 +732,7 @@ public class CrowdsourcingActiveMeasurement {
         annAccComputer.csvHeader(), machineAccComputer.csvHeader(), 
         settingsComputer.csvHeader()
         ));
+    resultsOut.flush();
 
     /////////////////////////////////////////////////////////////////////
     // Annotate via active selection
@@ -1026,6 +1025,7 @@ public class CrowdsourcingActiveMeasurement {
           "inline_hyperparam_tuning",
           "annotate_top_k_choices",
           "vary_annotator_rates",
+          "active_strategy"
           });
     }
     public String compute(int dataSecs, int inferenceSecs, PriorSpecification priors) {
@@ -1064,6 +1064,7 @@ public class CrowdsourcingActiveMeasurement {
           ""+inlineHyperparamTuning,
           ""+annotateTopKChoices,
           ""+varyAnnotatorRates,
+          ""+activeStrategy
         });
     }
   }

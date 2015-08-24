@@ -67,7 +67,7 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
     choice -= measurementProportions[0];
     if (choice<=0){
       Integer label = labelProvider.labelFor(source, datum);
-      return new ClassificationMeasurements.BasicClassificationAnnotationMeasurement(annotator, value, defaultConfidence, source, label, starttime, endtime);
+      return new ClassificationMeasurements.BasicClassificationAnnotationMeasurement(null, annotator, value, defaultConfidence, source, label, starttime, endtime);
     }
     
     // labeled predicate
@@ -83,7 +83,7 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
       double effectiveSD = (1/accuracy)*labelPredicateSD*perWordCounts[wordIndex];
       double trueCount = perWordClassCounts[wordIndex][label];
       double corruptCount = Math.max(0, new NormalDistribution(rnd, trueCount, effectiveSD).sample()); 
-      return new ClassificationMeasurements.BasicClassificationLabeledPredicateMeasurement(annotator, corruptCount, defaultConfidence, label, word, starttime, endtime);
+      return new ClassificationMeasurements.BasicClassificationLabeledPredicateMeasurement(null, annotator, corruptCount, defaultConfidence, label, word, starttime, endtime);
     }
     
     // label proportion
@@ -94,7 +94,7 @@ public class FallibleMeasurementProvider<D> implements LabelProvider<D,Measureme
       double truth = labelCount(label);
       double effectiveSD = (1/accuracy)*labelProportionSD*dataset.getInfo().getNumDocuments();
       double corruptCount = Math.max(0, new NormalDistribution(rnd, truth, effectiveSD).sample());
-      return new ClassificationMeasurements.BasicClassificationLabelProportionMeasurement(annotator, corruptCount, defaultConfidence, label, starttime, endtime);
+      return new ClassificationMeasurements.BasicClassificationLabelProportionMeasurement(null, annotator, corruptCount, defaultConfidence, label, starttime, endtime);
     }
 
   }

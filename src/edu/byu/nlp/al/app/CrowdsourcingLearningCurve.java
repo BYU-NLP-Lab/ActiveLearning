@@ -674,7 +674,7 @@ public class CrowdsourcingLearningCurve {
       int trustedAnnotator = annotatorIndexer.indexOf(trustedMeasurementAnnotator);
       for (String label: labelIndexer){
         double uniformLablProportion = 1.0/trainingData.getInfo().getNumClasses();
-        Measurement meas = new BasicClassificationLabelProportionMeasurement(trustedAnnotator, uniformLablProportion, 1, labelIndexer.indexOf(label), 0L, 0L);
+        Measurement meas = new BasicClassificationLabelProportionMeasurement(null, trustedAnnotator, uniformLablProportion, 1, labelIndexer.indexOf(label), 0L, 0L);
         FlatInstance<SparseFeatureVector, Integer> ann = new BasicFlatInstance<SparseFeatureVector, Integer>(
             -1, null, trustedAnnotator, null, meas, 0L, 0L);
         Datasets.addAnnotationToDataset(trainingData, ann);
