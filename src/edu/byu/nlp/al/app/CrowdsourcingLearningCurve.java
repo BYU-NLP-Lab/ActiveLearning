@@ -472,7 +472,7 @@ public class CrowdsourcingLearningCurve {
     
     boolean returnLabeledAccuracy = true;
     // initialize model variables
-    SerializableCrowdsourcingState initialization = trainEval(nullWriter(), nullWriter(), nullWriter(), nullWriter(),
+    SerializableCrowdsourcingState initialization = trainEval(nullWriter(), nullWriter(), nullWriter(), nullWriter(), serializeOut,
             null, dataRnd, algRnd, stopwatchData, 
             trainingData, false, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
             bTheta, bMu, bPhi, bGamma, cGamma, 
@@ -488,14 +488,14 @@ public class CrowdsourcingLearningCurve {
     }
 
     // final go
-    SerializableCrowdsourcingState finalState = trainEval(debugOut, annotationsOut, tabularPredictionsOut, resultsOut,
+    SerializableCrowdsourcingState finalState = trainEval(debugOut, annotationsOut, tabularPredictionsOut, resultsOut, serializeOut,
         initialization, dataRnd, algRnd, stopwatchData, 
         trainingData, false, testData, annotations, // train on training data (also use unannotated, unlabeled validation data) 
         bTheta, bMu, bPhi, bGamma, cGamma, 
         lambda, evalPoint, labelingStrategy, training, returnLabeledAccuracy);
     
     // serialize state out
-    finalState.serializeTo(serializeOut);
+//    finalState.serializeTo(serializeOut);
     
     debugOut.close();
     annotationsOut.close();
@@ -577,7 +577,7 @@ public class CrowdsourcingLearningCurve {
 			          RandomGenerator dataRnd = new MersenneTwister(dataSeed);
 			          PrintWriter nullPipe = nullWriter();
 			          boolean onlyAnnotateLabeledData = true;
-			          double val = trainEval(nullPipe, nullPipe, nullPipe, nullPipe, 
+			          double val = trainEval(nullPipe, nullPipe, nullPipe, nullPipe, nullPipe, 
 			              initialization, dataRnd, algRnd, null, // null stopwatch
 			              validationData, onlyAnnotateLabeledData,  
 			              Datasets.emptyDataset(validationData.getInfo()), // no test data 
@@ -665,7 +665,7 @@ public class CrowdsourcingLearningCurve {
    */
   private static SerializableCrowdsourcingState trainEval(PrintWriter debugOut,
       PrintWriter annotationsOut, PrintWriter tabularPredictionsOut,
-      PrintWriter resultsOut, SerializableCrowdsourcingState initialState, 
+      PrintWriter resultsOut, PrintWriter serializeOut, SerializableCrowdsourcingState initialState, 
       RandomGenerator dataRnd, RandomGenerator algRnd,
       Stopwatch stopwatchData, Dataset trainingData, boolean onlyAnnotateLabeledData,  
       final Dataset testData, final EmpiricalAnnotations<SparseFeatureVector, Integer> annotations,
@@ -908,26 +908,26 @@ public class CrowdsourcingLearningCurve {
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
       labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldLogRespModel.ModelBuilder(), 
     				  priors, trainingData, yInitializer, mInitializer, algRnd),
-    		  training, predictionLogger);
+    		  training, predictionLogger, serializeOut);
       break;
       
     case VARMULTIRESP:
         labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMultiRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
-		  training, predictionLogger);
+		  training, predictionLogger, serializeOut);
       break;
       
     case VARMOMRESP:
         labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldMomRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
-	    		  training, predictionLogger);
+	    		  training, predictionLogger, serializeOut);
       break;
       
     case VARITEMRESP:
   	  trainingData = truncateUnannotatedUnlabeledData(trainingData);
       labeler = new MeanFieldMultiAnnLabeler(MultiAnnModelBuilders.initModelBuilder(new MeanFieldItemRespModel.ModelBuilder(), 
 				  priors, trainingData, yInitializer, mInitializer, algRnd),
-	    		  training, predictionLogger);
+	    		  training, predictionLogger, serializeOut);
       break;
       
     // some variant of multiannotator model sampling
