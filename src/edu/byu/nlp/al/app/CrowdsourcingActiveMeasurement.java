@@ -127,7 +127,7 @@ public class CrowdsourcingActiveMeasurement {
   private static Logger logger = LoggerFactory.getLogger(CrowdsourcingActiveMeasurement.class);
 
   @Option(help = "base directory of the documents") 
-  private static String basedir = "./20_newsgroups";
+  private static String basedir = "NA";
 
   @Option(help="what kind of hyperparameter optimization to do. In the form maximize-[varname]-[type]-[maxiterations]. type in HyperparamOpt. Default is NONE.")
   private static String hyperparamTraining = "none";
@@ -288,13 +288,13 @@ public class CrowdsourcingActiveMeasurement {
   @Option
   private static int activeEvalPoint = 0;
   @Option
-  private static int batchSize = 1;
+  private static int batchSize = 10;
   @Option(help="number of samples to use for model training during active measurement selection")
-  private static int numSamples = 10;
+  private static int numSamples = 1;
   @Option(help="what percentage of the candidates should be considered at each iteration of active measurement selection")
-  private static double thinningRate = 0.1;
+  private static double thinningRate = 0.001;
   @Option(help="what is the minimum number of candidates to consider (if available) at each iteration of active measurement selection")
-  private static int minCandidates = 10;
+  private static int minCandidates = 25;
   
   
   /* -------------  Model Params  ------------------- */
@@ -771,6 +771,12 @@ public class CrowdsourcingActiveMeasurement {
                   priors)
           ));
       resultsOut.flush();
+      
+      for (FlatInstance<SparseFeatureVector, Integer> ann : anns) {
+	      writeAnnotation(annotationsOut, ann.getSource(), ann.getAnnotator(), ann.getMeasurement(), ann.getStartTimestamp(), ann.getEndTimestamp());
+      }
+      
+      
       PredictionTabulator.writeTo(predictions, tabularPredictionsOut);
       // log results to console
       logger.info("confusion matrix\n"+new ConfusionMatrixComputer(trainingData.getInfo().getLabelIndexer()).compute(predictions.labeledPredictions()).toString());
@@ -981,12 +987,24 @@ public class CrowdsourcingActiveMeasurement {
       out.printf("%s, %d, %s, %d, %d\n",
           ar.getInstance().getSource(),
           ar.getAnnotatorId(),
-          ai.getAnnotation(),
+          ai.getMeasurement().toString(),
           ai.getAnnotationEvent().getDurationNanos(),
           ai.getWaitEvent().getDurationNanos());
       out.flush();
     }
   }
+  private static void writeAnnotation(PrintWriter out, String source, Integer annotatorId, Measurement annotation, Long start, Long duration) {
+	    if (out != null) {
+	      // CSV: source, annotator_id, annotation, duration
+	      out.printf("%s, %d, %s, %d, %d\n",
+	          source,
+	          annotatorId,
+	          annotation.toString(),
+	          start,
+	          duration);
+	      out.flush();
+	    }
+	  }
   
   public static class ExperimentSettingsComputer {
     public String csvHeader() {

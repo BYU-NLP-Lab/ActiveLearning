@@ -108,6 +108,9 @@ public class ActiveMeasurementSelector implements MeasurementSelector{
           continue;
         }
         candidatesConsidered += 1;
+    	if (candidatesConsidered > minCandidates) {
+    		break;
+    	}
         
         int annotatorIndex = candidate.getMeasurement().getAnnotator();
         String rawAnnotator = dataset.getInfo().getAnnotatorIdIndexer().get(annotatorIndex);
@@ -150,7 +153,7 @@ public class ActiveMeasurementSelector implements MeasurementSelector{
     
     // return top k (and remove from future candidates)
     logger.info("\n**********************************************************\n"
-            + "******* Selected batch of size "+candidateTracker.argmax().size()+" *******\n"
+            + "******* Selected batch of size "+candidateTracker.argmax().size()+" out of "+candidatesConsidered+" candidates *******\n"
             + "**********************************************************\n");
     candidates.removeAll(candidateTracker.argmax());
     return candidateTracker.argmax();
